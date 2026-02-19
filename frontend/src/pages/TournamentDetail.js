@@ -5,10 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'react-hot-toast';
 import { 
   Trophy, 
-  Users, 
-  Clock, 
   Heart, 
-  Share2,
   Calendar,
   Award,
   ArrowLeft
@@ -49,7 +46,7 @@ const mockTournament = {
 
 const TournamentDetail = () => {
   const { id } = useParams();
-  const { user, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
   const [tournament, setTournament] = useState(null);
   const [countdown, setCountdown] = useState({ hours: 0, minutes: 0, seconds: 0 });
   const [isLoading, setIsLoading] = useState(true);

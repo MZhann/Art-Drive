@@ -9,7 +9,6 @@ import {
   Instagram, 
   Star,
   Trophy,
-  Heart,
   Edit,
   Share2,
   Calendar

@@ -42,7 +42,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [authMode, setAuthMode] = useState(API_CONFIG.AUTH_MODE);
+  const [authMode] = useState(API_CONFIG.AUTH_MODE);
 
   // Initialize auth state
   useEffect(() => {

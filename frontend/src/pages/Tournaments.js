@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Search, Filter, Trophy, Users, Clock, ArrowRight } from 'lucide-react';
+import { Search, Filter, Trophy, Clock, ArrowRight } from 'lucide-react';
 import { TOURNAMENT_CATEGORIES } from '../config/api.config';
 import './Tournaments.css';
 

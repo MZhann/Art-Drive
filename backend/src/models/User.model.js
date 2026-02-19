@@ -112,8 +112,7 @@ const userSchema = new mongoose.Schema({
 });
 
 // Index for faster queries
-userSchema.index({ email: 1 });
-userSchema.index({ username: 1 });
+// Note: email and username already have indexes from 'unique: true'
 userSchema.index({ role: 1 });
 userSchema.index({ points: -1 });
 
