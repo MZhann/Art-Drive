@@ -21,17 +21,20 @@ const seedAdmin = require('./seeds/adminSeed');
 const app = express();
 const server = http.createServer(app);
 
+// Sanitize FRONTEND_URL — strip trailing slash to prevent CORS mismatch
+const FRONTEND_URL = (process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/+$/, '');
+
 // Initialize Socket.IO for real-time features
 const io = new Server(server, {
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: FRONTEND_URL,
     methods: ['GET', 'POST']
   }
 });
 
 // Middleware
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: FRONTEND_URL,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Dev-User-Id', 'X-Dev-User-Role']
@@ -137,7 +140,7 @@ async function startServer() {
   server.listen(PORT, HOST, () => {
     console.log(`🚀 ArtDrive server running on ${HOST}:${PORT}`);
     console.log(`📡 Auth Mode: ${process.env.AUTH_MODE || 'PROD'}`);
-    console.log(`🌐 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
+    console.log(`🌐 Frontend URL: ${FRONTEND_URL}`);
   });
 }
 
