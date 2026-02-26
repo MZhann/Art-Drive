@@ -1,5 +1,7 @@
 const User = require('../models/User.model');
 const { validationResult } = require('express-validator');
+const fs = require('fs');
+const path = require('path');
 
 /**
  * @desc    Get user by ID
@@ -126,6 +128,60 @@ const updateProfile = async (req, res) => {
 };
 
 /**
+ * @desc    Upload avatar
+ * @route   POST /api/users/avatar
+ * @access  Private
+ */
+const uploadAvatar = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please upload an image file'
+      });
+    }
+
+    const userId = req.user._id || req.user.id;
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Delete old avatar file if it exists
+    if (user.avatar) {
+      const oldAvatarPath = path.join(__dirname, '../../', user.avatar);
+      if (fs.existsSync(oldAvatarPath)) {
+        fs.unlinkSync(oldAvatarPath);
+      }
+    }
+
+    // Save new avatar path
+    const avatarUrl = `uploads/avatars/${req.file.filename}`;
+    user.avatar = avatarUrl;
+    await user.save();
+
+    res.json({
+      success: true,
+      message: 'Avatar uploaded successfully',
+      data: {
+        avatar: avatarUrl,
+        user: user.getPublicProfile()
+      }
+    });
+  } catch (error) {
+    console.error('Upload avatar error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to upload avatar'
+    });
+  }
+};
+
+/**
  * @desc    Get all photographers (with filters)
  * @route   GET /api/users/photographers
  * @access  Public
@@ -219,22 +275,29 @@ const getLeaderboard = async (req, res) => {
 };
 
 /**
- * @desc    Add photo to portfolio
+ * @desc    Add photo to portfolio (with file upload)
  * @route   POST /api/users/portfolio
  * @access  Private (Photographer)
  */
 const addToPortfolio = async (req, res) => {
   try {
-    const { imageUrl, title, description } = req.body;
+    const userId = req.user._id || req.user.id;
+    const { title, description } = req.body;
 
-    if (!imageUrl) {
+    // Support both file upload and URL-based addition
+    let imageUrl;
+    if (req.file) {
+      imageUrl = `uploads/portfolio/${req.file.filename}`;
+    } else if (req.body.imageUrl) {
+      imageUrl = req.body.imageUrl;
+    } else {
       return res.status(400).json({
         success: false,
-        message: 'Image URL is required'
+        message: 'Please upload an image file or provide an image URL'
       });
     }
 
-    const user = await User.findById(req.user._id || req.user.id);
+    const user = await User.findById(userId);
 
     if (!user) {
       return res.status(404).json({
@@ -250,13 +313,19 @@ const addToPortfolio = async (req, res) => {
     });
 
     user.stats.totalPhotosUploaded += 1;
+
+    // Award points for uploading a photo
+    user.points += 5;
+    user.calculateLevel();
+
     await user.save();
 
     res.status(201).json({
       success: true,
       message: 'Photo added to portfolio',
       data: {
-        portfolio: user.portfolio
+        portfolio: user.portfolio,
+        photo: user.portfolio[user.portfolio.length - 1]
       }
     });
   } catch (error) {
@@ -264,6 +333,56 @@ const addToPortfolio = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to add photo to portfolio'
+    });
+  }
+};
+
+/**
+ * @desc    Update portfolio photo details
+ * @route   PUT /api/users/portfolio/:photoId
+ * @access  Private (Photographer)
+ */
+const updatePortfolioPhoto = async (req, res) => {
+  try {
+    const userId = req.user._id || req.user.id;
+    const { title, description } = req.body;
+
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    const photo = user.portfolio.id(req.params.photoId);
+
+    if (!photo) {
+      return res.status(404).json({
+        success: false,
+        message: 'Photo not found in portfolio'
+      });
+    }
+
+    if (title !== undefined) photo.title = title;
+    if (description !== undefined) photo.description = description;
+
+    await user.save();
+
+    res.json({
+      success: true,
+      message: 'Portfolio photo updated',
+      data: {
+        photo,
+        portfolio: user.portfolio
+      }
+    });
+  } catch (error) {
+    console.error('Update portfolio photo error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update portfolio photo'
     });
   }
 };
@@ -284,9 +403,30 @@ const removeFromPortfolio = async (req, res) => {
       });
     }
 
+    const photo = user.portfolio.id(req.params.photoId);
+
+    if (!photo) {
+      return res.status(404).json({
+        success: false,
+        message: 'Photo not found in portfolio'
+      });
+    }
+
+    // Delete the file from disk if it's a local upload
+    if (photo.imageUrl && photo.imageUrl.startsWith('uploads/')) {
+      const filePath = path.join(__dirname, '../../', photo.imageUrl);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    }
+
     user.portfolio = user.portfolio.filter(
-      photo => photo._id.toString() !== req.params.photoId
+      p => p._id.toString() !== req.params.photoId
     );
+
+    if (user.stats.totalPhotosUploaded > 0) {
+      user.stats.totalPhotosUploaded -= 1;
+    }
 
     await user.save();
 
@@ -310,9 +450,10 @@ module.exports = {
   getUserById,
   getUserByUsername,
   updateProfile,
+  uploadAvatar,
   getPhotographers,
   getLeaderboard,
   addToPortfolio,
+  updatePortfolioPhoto,
   removeFromPortfolio
 };
-

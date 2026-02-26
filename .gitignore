@@ -9,7 +9,7 @@ node_modules/
 .env.development.local
 .env.test.local
 .env.production.local
-*.env
+.env.staging
 
 # Build outputs
 build/
@@ -55,7 +55,6 @@ Thumbs.db
 desktop.ini
 
 # Testing
-coverage/
 .jest/
 
 # Misc
@@ -63,7 +62,7 @@ coverage/
 .cache/
 .parcel-cache/
 
-# Uploads (user generated content)
+# Uploads (user generated content — not committed to git)
 uploads/
 !uploads/.gitkeep
 
@@ -72,3 +71,5 @@ tmp/
 temp/
 *.tmp
 
+# Vercel
+.vercel/

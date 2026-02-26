@@ -323,7 +323,7 @@ const Dashboard = () => {
                 <div className="quick-actions">
                   {user?.role === 'photographer' && (
                     <>
-                      <Link to="/portfolio/upload" className="action-btn">
+                      <Link to={`/profile/${user?.username}`} className="action-btn">
                         <Camera size={20} />
                         <span>Upload Photo</span>
                       </Link>

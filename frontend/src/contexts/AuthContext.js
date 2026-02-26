@@ -62,10 +62,21 @@ export const AuthProvider = ({ children }) => {
           // PROD MODE: Verify token with backend
           const token = localStorage.getItem('artdrive_token');
           if (token) {
-            const response = await authAPI.getMe();
-            if (response.data.success) {
-              setUser(response.data.data.user);
-              setIsAuthenticated(true);
+            try {
+              const response = await authAPI.getMe();
+              if (response.data.success) {
+                setUser(response.data.data.user);
+                setIsAuthenticated(true);
+              } else {
+                // Token invalid, clean up
+                localStorage.removeItem('artdrive_token');
+                localStorage.removeItem('artdrive_user');
+              }
+            } catch (err) {
+              // Token verification failed
+              console.error('Token verification failed:', err);
+              localStorage.removeItem('artdrive_token');
+              localStorage.removeItem('artdrive_user');
             }
           }
         }
@@ -115,20 +126,20 @@ export const AuthProvider = ({ children }) => {
         const response = await authAPI.register(userData);
         
         if (response.data.success) {
-          const { user, token } = response.data.data;
+          const { user: newUser, token } = response.data.data;
           localStorage.setItem('artdrive_token', token);
-          localStorage.setItem('artdrive_user', JSON.stringify(user));
+          localStorage.setItem('artdrive_user', JSON.stringify(newUser));
           
-          setUser(user);
+          setUser(newUser);
           setIsAuthenticated(true);
           
-          return { success: true, user };
+          return { success: true, user: newUser };
         }
         
         return { success: false, message: response.data.message };
       }
     } catch (error) {
-      const message = error.response?.data?.message || 'Registration failed';
+      const message = error.response?.data?.message || 'Registration failed. Please try again.';
       return { success: false, message };
     } finally {
       setIsLoading(false);
@@ -154,40 +165,26 @@ export const AuthProvider = ({ children }) => {
           return { success: true, user: devUser };
         }
         
-        // Check if user registered in dev mode before
-        const savedUsers = JSON.parse(localStorage.getItem('artdrive_dev_users') || '[]');
-        const savedUser = savedUsers.find(u => u.email === email);
-        
-        if (savedUser) {
-          localStorage.setItem('artdrive_dev_user', JSON.stringify(savedUser));
-          localStorage.setItem('artdrive_token', `dev-token-${Date.now()}`);
-          
-          setUser(savedUser);
-          setIsAuthenticated(true);
-          
-          return { success: true, user: savedUser };
-        }
-        
         return { success: false, message: 'Invalid email or password. Try: photographer@test.com, employer@test.com, or admin@test.com' };
       } else {
         // PROD MODE: Call backend API
         const response = await authAPI.login({ email, password });
         
         if (response.data.success) {
-          const { user, token } = response.data.data;
+          const { user: loggedInUser, token } = response.data.data;
           localStorage.setItem('artdrive_token', token);
-          localStorage.setItem('artdrive_user', JSON.stringify(user));
+          localStorage.setItem('artdrive_user', JSON.stringify(loggedInUser));
           
-          setUser(user);
+          setUser(loggedInUser);
           setIsAuthenticated(true);
           
-          return { success: true, user };
+          return { success: true, user: loggedInUser };
         }
         
         return { success: false, message: response.data.message };
       }
     } catch (error) {
-      const message = error.response?.data?.message || 'Login failed';
+      const message = error.response?.data?.message || 'Login failed. Please check your credentials.';
       return { success: false, message };
     } finally {
       setIsLoading(false);
@@ -214,15 +211,18 @@ export const AuthProvider = ({ children }) => {
 
   // Update user data
   const updateUser = useCallback((userData) => {
-    const updatedUser = { ...user, ...userData };
-    setUser(updatedUser);
-    
-    if (authMode === 'DEV') {
-      localStorage.setItem('artdrive_dev_user', JSON.stringify(updatedUser));
-    } else {
-      localStorage.setItem('artdrive_user', JSON.stringify(updatedUser));
-    }
-  }, [user, authMode]);
+    setUser(prevUser => {
+      const updatedUser = { ...prevUser, ...userData };
+      
+      if (authMode === 'DEV') {
+        localStorage.setItem('artdrive_dev_user', JSON.stringify(updatedUser));
+      } else {
+        localStorage.setItem('artdrive_user', JSON.stringify(updatedUser));
+      }
+      
+      return updatedUser;
+    });
+  }, [authMode]);
 
   // Check if user has specific role
   const hasRole = useCallback((role) => {
@@ -266,4 +266,3 @@ export const useAuth = () => {
 };
 
 export default AuthContext;
-

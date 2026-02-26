@@ -84,7 +84,6 @@ const Register = () => {
         <div className="auth-card">
           <div className="auth-header">
             <Link to="/" className="auth-logo">
-              <span>🎨</span>
               <span className="text-gradient">Art</span>Drive
             </Link>
             <h1>Join ArtDrive</h1>

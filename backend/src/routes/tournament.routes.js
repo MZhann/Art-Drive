@@ -3,6 +3,7 @@ const router = express.Router();
 const { body } = require('express-validator');
 const tournamentController = require('../controllers/tournament.controller');
 const { auth, authorize } = require('../middleware/auth.middleware');
+const { uploadTournament, handleMulterError } = require('../middleware/upload.middleware');
 
 // Validation rules
 const createTournamentValidation = [
@@ -16,9 +17,6 @@ const createTournamentValidation = [
   body('category')
     .isIn(['abstract', 'portrait', 'landscape', 'street', 'nature', 'architecture', 'fashion', 'sports', 'wildlife', 'macro', 'cyberpunk', 'character', 'other'])
     .withMessage('Invalid category'),
-  body('coverImage')
-    .notEmpty()
-    .withMessage('Cover image is required'),
   body('registrationStart')
     .isISO8601()
     .withMessage('Invalid registration start date'),
@@ -30,7 +28,15 @@ const createTournamentValidation = [
     .withMessage('Invalid voting start date'),
   body('votingEnd')
     .isISO8601()
-    .withMessage('Invalid voting end date')
+    .withMessage('Invalid voting end date'),
+  body('maxParticipants')
+    .optional()
+    .isInt({ min: 2, max: 10000 })
+    .withMessage('Max participants must be between 2 and 10000'),
+  body('rules')
+    .optional()
+    .isLength({ max: 5000 })
+    .withMessage('Rules cannot exceed 5000 characters')
 ];
 
 // Public routes
@@ -41,7 +47,7 @@ router.get('/:id', tournamentController.getTournamentById);
 router.get('/:id/leaderboard', tournamentController.getTournamentLeaderboard);
 
 // Protected routes
-router.post('/:id/register', auth, authorize('photographer'), tournamentController.registerForTournament);
+router.post('/:id/register', auth, authorize('photographer'), uploadTournament.single('photo'), handleMulterError, tournamentController.registerForTournament);
 router.post('/:id/vote/:participantId', auth, tournamentController.voteForParticipant);
 
 // Admin routes

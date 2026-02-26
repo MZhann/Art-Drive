@@ -320,3 +320,24 @@
   }
 }
 
+/* Admin styles */
+.nav-link.admin-link {
+  color: var(--color-accent-primary);
+  border: 1px solid rgba(168, 85, 247, 0.3);
+  border-radius: var(--radius-full);
+  padding: 6px 14px;
+  font-size: 0.8125rem;
+}
+
+.nav-link.admin-link:hover {
+  background: rgba(168, 85, 247, 0.1);
+}
+
+.admin-menu-item {
+  color: var(--color-accent-primary) !important;
+}
+
+.admin-menu-item svg {
+  color: var(--color-accent-primary);
+}
+

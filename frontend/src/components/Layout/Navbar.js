@@ -10,12 +10,14 @@ import {
   LayoutDashboard,
   Camera,
   Bell,
-  Settings
+  Settings,
+  Plus,
+  Shield
 } from 'lucide-react';
 import './Navbar.css';
 
 const Navbar = () => {
-  const { user, isAuthenticated, logout, isDevMode } = useAuth();
+  const { user, isAuthenticated, logout, isDevMode, isAdmin } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -36,12 +38,16 @@ const Navbar = () => {
     { path: '/photographers', label: 'Photographers', icon: Camera },
   ];
 
+  // Add admin link to create tournament if user is admin
+  const adminNavLinks = isAuthenticated && isAdmin() ? [
+    { path: '/admin/tournaments/create', label: 'Create Tournament', icon: Plus },
+  ] : [];
+
   return (
     <nav className="navbar">
       <div className="container navbar-container">
         {/* Logo */}
         <Link to="/" className="navbar-logo">
-          <span className="logo-icon">🎨</span>
           <span className="logo-text">
             <span className="text-gradient">Art</span>Drive
           </span>
@@ -54,6 +60,16 @@ const Navbar = () => {
               key={path}
               to={path}
               className={`nav-link ${isActive(path) ? 'active' : ''}`}
+            >
+              <Icon size={18} />
+              <span>{label}</span>
+            </Link>
+          ))}
+          {adminNavLinks.map(({ path, label, icon: Icon }) => (
+            <Link
+              key={path}
+              to={path}
+              className={`nav-link admin-link ${isActive(path) ? 'active' : ''}`}
             >
               <Icon size={18} />
               <span>{label}</span>
@@ -127,6 +143,19 @@ const Navbar = () => {
                         <Settings size={18} />
                         <span>Settings</span>
                       </Link>
+                      {isAdmin() && (
+                        <>
+                          <div className="user-menu-divider" />
+                          <Link 
+                            to="/admin/tournaments/create" 
+                            className="user-menu-item admin-menu-item"
+                            onClick={() => setUserMenuOpen(false)}
+                          >
+                            <Shield size={18} />
+                            <span>Create Tournament</span>
+                          </Link>
+                        </>
+                      )}
                       <div className="user-menu-divider" />
                       <button className="user-menu-item logout" onClick={handleLogout}>
                         <LogOut size={18} />

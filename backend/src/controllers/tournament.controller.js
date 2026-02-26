@@ -35,7 +35,8 @@ const getTournaments = async (req, res) => {
 
     const [tournaments, total] = await Promise.all([
       Tournament.find(query)
-        .select('title category coverImage prizeFund status registrationEnd votingEnd stats isHot tags')
+        .select('title description category coverImage prizeFund prizes rules status registrationStart registrationEnd votingStart votingEnd stats isHot tags maxParticipants createdBy')
+        .populate('createdBy', 'username fullName')
         .sort(sort)
         .skip(skip)
         .limit(parseInt(limit)),
@@ -124,8 +125,58 @@ const createTournament = async (req, res) => {
       });
     }
 
+    const {
+      title,
+      description,
+      category,
+      coverImage,
+      rules,
+      maxParticipants,
+      registrationStart,
+      registrationEnd,
+      votingStart,
+      votingEnd,
+      prizes,
+      prizeFund,
+      sponsorGift,
+      tags,
+      settings
+    } = req.body;
+
+    // Determine initial status based on dates
+    const now = new Date();
+    const regStart = new Date(registrationStart);
+    let status = 'upcoming';
+    if (now >= regStart) {
+      status = 'registration';
+    }
+
     const tournamentData = {
-      ...req.body,
+      title,
+      description,
+      category,
+      coverImage: coverImage || '',
+      rules: rules || '',
+      maxParticipants: maxParticipants || 500,
+      registrationStart,
+      registrationEnd,
+      votingStart,
+      votingEnd,
+      status,
+      prizes: {
+        points: prizes?.points ?? 10,
+        badge: {
+          name: prizes?.badge?.name || 'Tournament Winner',
+          description: prizes?.badge?.description || `Winner of ${title}`,
+          icon: prizes?.badge?.icon || '🏆'
+        },
+        newsPageDays: prizes?.newsPageDays ?? 2,
+        additionalPrizes: prizes?.additionalPrizes || ''
+      },
+      prizeFund: prizeFund || { amount: 0, currency: 'USD' },
+      sponsorGift: sponsorGift || { title: '', description: '', image: '' },
+      tags: tags || [],
+      settings: settings || {},
       createdBy: req.user._id || req.user.id
     };
 
@@ -142,7 +193,8 @@ const createTournament = async (req, res) => {
     console.error('Create tournament error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to create tournament'
+      message: 'Failed to create tournament',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
@@ -190,12 +242,18 @@ const updateTournament = async (req, res) => {
  */
 const registerForTournament = async (req, res) => {
   try {
-    const { photoUrl, photoTitle, photoDescription } = req.body;
+    const { photoTitle, photoDescription } = req.body;
+
+    // Support both file upload and URL
+    let photoUrl = req.body.photoUrl || '';
+    if (req.file) {
+      photoUrl = `/uploads/tournaments/${req.file.filename}`;
+    }
 
     if (!photoUrl) {
       return res.status(400).json({
         success: false,
-        message: 'Photo URL is required'
+        message: 'A photo is required to register. Upload a file or provide a URL.'
       });
     }
 

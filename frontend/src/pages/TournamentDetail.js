@@ -1,78 +1,90 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
+import { tournamentAPI, getImageUrl } from '../services/api.service';
 import { toast } from 'react-hot-toast';
 import { 
   Trophy, 
   Heart, 
   Calendar,
   Award,
-  ArrowLeft
+  ArrowLeft,
+  Users,
+  FileText,
+  Star,
+  Newspaper,
+  UploadCloud,
+  X,
+  CheckCircle
 } from 'lucide-react';
 import './TournamentDetail.css';
 
-// Mock tournament data
-const mockTournament = {
-  id: '1',
-  title: 'Abstract Art',
-  description: 'Showcase your creativity in this abstract art photography competition. Push the boundaries of visual expression and compete for amazing prizes.',
-  category: 'abstract',
-  coverImage: 'https://images.unsplash.com/photo-1541701494587-cb58502866ab?w=1200',
-  prizeFund: { amount: 7000, currency: 'USD' },
-  sponsorGift: {
-    title: 'MIDJOURNEY 1 YEAR SUBSCRIPTION',
-    description: 'Premium AI art tool subscription'
-  },
-  registrationStart: new Date('2024-04-01'),
-  registrationEnd: new Date(Date.now() + 18 * 60 * 60 * 1000),
-  votingStart: new Date('2024-04-15'),
-  votingEnd: new Date('2024-04-20'),
-  status: 'registration',
-  stats: {
-    totalParticipants: 500,
-    totalVotes: 12500,
-    totalViews: 15000
-  },
-  isHot: true,
-  participants: [
-    { id: '1', user: { username: 'alex_photo', fullName: 'Alex Photography', avatar: null }, votes: 1250, photo: { url: 'https://images.unsplash.com/photo-1549887534-1541e9326642?w=400' } },
-    { id: '2', user: { username: 'maria_lens', fullName: 'Maria Lens', avatar: null }, votes: 1180, photo: { url: 'https://images.unsplash.com/photo-1518640467707-6811f4a6ab73?w=400' } },
-    { id: '3', user: { username: 'photo_master', fullName: 'Photo Master', avatar: null }, votes: 980, photo: { url: 'https://images.unsplash.com/photo-1519125323398-675f0ddb6308?w=400' } },
-    { id: '4', user: { username: 'creative_eye', fullName: 'Creative Eye', avatar: null }, votes: 875, photo: { url: 'https://images.unsplash.com/photo-1504805572947-34fad45aed93?w=400' } },
-    { id: '5', user: { username: 'art_vision', fullName: 'Art Vision', avatar: null }, votes: 720, photo: { url: 'https://images.unsplash.com/photo-1557672172-298e090bd0f1?w=400' } }
-  ]
-};
-
 const TournamentDetail = () => {
   const { id } = useParams();
-  const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+  const { user, isAuthenticated } = useAuth();
   const [tournament, setTournament] = useState(null);
-  const [countdown, setCountdown] = useState({ hours: 0, minutes: 0, seconds: 0 });
+  const [countdown, setCountdown] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    // Simulate API call
-    setTimeout(() => {
-      setTournament(mockTournament);
+  // Registration modal state
+  const [showRegisterModal, setShowRegisterModal] = useState(false);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [photoTitle, setPhotoTitle] = useState('');
+  const [photoDescription, setPhotoDescription] = useState('');
+  const [isRegistering, setIsRegistering] = useState(false);
+
+  const fetchTournament = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const response = await tournamentAPI.getById(id);
+      if (response.data.success) {
+        setTournament(response.data.data.tournament);
+      } else {
+        toast.error('Tournament not found');
+        setTournament(null);
+      }
+    } catch (error) {
+      console.error('Error fetching tournament:', error);
+      toast.error('Failed to load tournament');
+      setTournament(null);
+    } finally {
       setIsLoading(false);
-    }, 500);
+    }
   }, [id]);
+
+  useEffect(() => {
+    fetchTournament();
+  }, [fetchTournament]);
 
   // Countdown timer
   useEffect(() => {
     if (!tournament) return;
 
+    const getTargetDate = () => {
+      const status = tournament.status;
+      if (status === 'upcoming') return new Date(tournament.registrationStart);
+      if (status === 'registration') return new Date(tournament.registrationEnd);
+      if (status === 'live') return new Date(tournament.votingStart);
+      if (status === 'voting') return new Date(tournament.votingEnd);
+      return null;
+    };
+
     const updateCountdown = () => {
+      const target = getTargetDate();
+      if (!target) return;
+
       const now = new Date();
-      const target = new Date(tournament.registrationEnd);
       const diff = target - now;
 
       if (diff > 0) {
-        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
         const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
         const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-        setCountdown({ hours, minutes, seconds });
+        setCountdown({ days, hours, minutes, seconds });
       }
     };
 
@@ -81,20 +93,143 @@ const TournamentDetail = () => {
     return () => clearInterval(interval);
   }, [tournament]);
 
-  const handleVote = (participantId) => {
+  const getCountdownLabel = () => {
+    if (!tournament) return '';
+    switch (tournament.status) {
+      case 'upcoming': return 'Registration opens in:';
+      case 'registration': return 'Registration ends in:';
+      case 'live': return 'Voting starts in:';
+      case 'voting': return 'Voting ends in:';
+      case 'completed': return 'Tournament completed';
+      default: return '';
+    }
+  };
+
+  // Check if current user is already registered
+  const isUserRegistered = () => {
+    if (!isAuthenticated || !user || !tournament?.participants) return false;
+    const userId = user.id || user._id;
+    return tournament.participants.some(
+      p => (p.user?._id || p.user) === userId
+    );
+  };
+
+  const handleVote = async (participantId) => {
     if (!isAuthenticated) {
       toast.error('Please login to vote');
       return;
     }
-    toast.success('Vote recorded!');
+    try {
+      const response = await tournamentAPI.vote(id, participantId);
+      if (response.data.success) {
+        toast.success('Vote recorded!');
+        fetchTournament();
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to vote');
+    }
   };
 
-  const handleRegister = () => {
+  const openRegisterModal = () => {
     if (!isAuthenticated) {
       toast.error('Please login to register');
+      navigate('/login');
       return;
     }
-    toast.success('Registration form coming soon!');
+    if (user?.role !== 'photographer') {
+      toast.error('Only photographers can register for tournaments');
+      return;
+    }
+    if (isUserRegistered()) {
+      toast.error('You are already registered for this tournament');
+      return;
+    }
+    setShowRegisterModal(true);
+  };
+
+  const closeRegisterModal = () => {
+    setShowRegisterModal(false);
+    setSelectedFile(null);
+    setPreviewUrl(null);
+    setPhotoTitle('');
+    setPhotoDescription('');
+  };
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error('File size must be under 10MB');
+        return;
+      }
+      setSelectedFile(file);
+      // Create preview URL
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPreviewUrl(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRegisterSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!selectedFile) {
+      toast.error('Please select a photo to submit');
+      return;
+    }
+
+    setIsRegistering(true);
+
+    try {
+      const formData = new FormData();
+      formData.append('photo', selectedFile);
+      formData.append('photoTitle', photoTitle || '');
+      formData.append('photoDescription', photoDescription || '');
+
+      const response = await tournamentAPI.register(id, formData);
+
+      if (response.data.success) {
+        toast.success('Successfully registered for the tournament!');
+        closeRegisterModal();
+        fetchTournament(); // Refresh to show updated participant list
+      } else {
+        toast.error(response.data.message || 'Registration failed');
+      }
+    } catch (error) {
+      console.error('Registration error:', error);
+      toast.error(error.response?.data?.message || 'Failed to register for tournament');
+    } finally {
+      setIsRegistering(false);
+    }
+  };
+
+  const getCoverImage = () => {
+    if (tournament?.coverImage) {
+      if (tournament.coverImage.startsWith('http')) return tournament.coverImage;
+      return getImageUrl(tournament.coverImage);
+    }
+    const defaults = {
+      abstract: 'https://images.unsplash.com/photo-1541701494587-cb58502866ab?w=1200',
+      portrait: 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=1200',
+      landscape: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=1200',
+      street: 'https://images.unsplash.com/photo-1565967511849-76a60a516170?w=1200',
+      nature: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=1200',
+      cyberpunk: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1200',
+      character: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?w=1200',
+    };
+    return defaults[tournament?.category] || defaults.abstract;
+  };
+
+  const formatDate = (date) => {
+    return new Date(date).toLocaleDateString('en-US', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   if (isLoading) {
@@ -116,12 +251,14 @@ const TournamentDetail = () => {
     );
   }
 
+  const userRegistered = isUserRegistered();
+
   return (
     <div className="tournament-detail-page">
       {/* Hero Section */}
       <div className="tournament-hero">
         <div className="hero-image">
-          <img src={tournament.coverImage} alt={tournament.title} />
+          <img src={getCoverImage()} alt={tournament.title} />
           <div className="hero-overlay"></div>
         </div>
         
@@ -138,49 +275,68 @@ const TournamentDetail = () => {
 
             <div className="tournament-badges">
               {tournament.isHot && <span className="badge badge-hot">HOT</span>}
-              <span className="badge badge-live">Live</span>
+              {(tournament.status === 'registration' || tournament.status === 'live' || tournament.status === 'voting') && (
+                <span className="badge badge-live">
+                  {tournament.status === 'registration' ? 'Registration Open' : tournament.status === 'voting' ? 'Voting' : 'Live'}
+                </span>
+              )}
+              <span className="category-tag-hero">{tournament.category}</span>
             </div>
 
             <h1 className="tournament-title">
-              {tournament.title.split(' ').map((word, i) => (
-                <span key={i}>{word}</span>
-              ))}
+              {tournament.title}
             </h1>
 
             <p className="tournament-description">{tournament.description}</p>
 
             {/* Countdown */}
-            <div className="countdown-section">
-              <p className="countdown-label">Registration ends in:</p>
-              <div className="countdown-timer large">
-                <div className="countdown-item">
-                  <span className="countdown-value">{countdown.hours.toString().padStart(2, '0')}</span>
-                  <span className="countdown-unit">hours</span>
-                </div>
-                <div className="countdown-separator">:</div>
-                <div className="countdown-item">
-                  <span className="countdown-value">{countdown.minutes.toString().padStart(2, '0')}</span>
-                  <span className="countdown-unit">min</span>
-                </div>
-                <div className="countdown-separator">:</div>
-                <div className="countdown-item">
-                  <span className="countdown-value">{countdown.seconds.toString().padStart(2, '0')}</span>
-                  <span className="countdown-unit">sec</span>
+            {tournament.status !== 'completed' && tournament.status !== 'cancelled' && (
+              <div className="countdown-section">
+                <p className="countdown-label">{getCountdownLabel()}</p>
+                <div className="countdown-timer large">
+                  {countdown.days > 0 && (
+                    <>
+                      <div className="countdown-item">
+                        <span className="countdown-value">{countdown.days.toString().padStart(2, '0')}</span>
+                        <span className="countdown-unit">days</span>
+                      </div>
+                      <div className="countdown-separator">:</div>
+                    </>
+                  )}
+                  <div className="countdown-item">
+                    <span className="countdown-value">{countdown.hours.toString().padStart(2, '0')}</span>
+                    <span className="countdown-unit">hours</span>
+                  </div>
+                  <div className="countdown-separator">:</div>
+                  <div className="countdown-item">
+                    <span className="countdown-value">{countdown.minutes.toString().padStart(2, '0')}</span>
+                    <span className="countdown-unit">min</span>
+                  </div>
+                  <div className="countdown-separator">:</div>
+                  <div className="countdown-item">
+                    <span className="countdown-value">{countdown.seconds.toString().padStart(2, '0')}</span>
+                    <span className="countdown-unit">sec</span>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
             {/* Action Buttons */}
-            <div className="hero-actions">
-              <button className="btn btn-primary btn-lg" onClick={handleRegister}>
-                <Trophy size={20} />
-                Register as Contestant
-              </button>
-              <button className="btn btn-secondary btn-lg" onClick={handleRegister}>
-                <Award size={20} />
-                Register as Judge
-              </button>
-            </div>
+            {tournament.status === 'registration' && (
+              <div className="hero-actions">
+                {userRegistered ? (
+                  <button className="btn btn-success btn-lg" disabled>
+                    <CheckCircle size={20} />
+                    You're Registered!
+                  </button>
+                ) : (
+                  <button className="btn btn-primary btn-lg" onClick={openRegisterModal}>
+                    <Trophy size={20} />
+                    Register as Contestant
+                  </button>
+                )}
+              </div>
+            )}
           </motion.div>
         </div>
       </div>
@@ -198,36 +354,58 @@ const TournamentDetail = () => {
             <h3>Tournament Stats</h3>
             <div className="stats-grid">
               <div className="stat-block">
-                <span className="stat-value large green">
-                  {tournament.prizeFund.amount.toLocaleString()}$
-                </span>
-                <span className="stat-label">Prize Fund</span>
-              </div>
-              <div className="stat-block">
                 <span className="stat-value large">
-                  {tournament.stats.totalViews.toLocaleString()}
-                </span>
-                <span className="stat-label">Audience</span>
-              </div>
-              <div className="stat-block">
-                <span className="stat-value large">
-                  {tournament.stats.totalParticipants}
+                  <Users size={18} />
+                  {tournament.stats?.totalParticipants || 0}/{tournament.maxParticipants}
                 </span>
                 <span className="stat-label">Participants</span>
+              </div>
+              <div className="stat-block">
+                <span className="stat-value large">
+                  {(tournament.stats?.totalViews || 0).toLocaleString()}
+                </span>
+                <span className="stat-label">Views</span>
+              </div>
+              <div className="stat-block">
+                <span className="stat-value large">
+                  {(tournament.stats?.totalVotes || 0).toLocaleString()}
+                </span>
+                <span className="stat-label">Total Votes</span>
               </div>
             </div>
           </motion.div>
 
-          {/* Sponsor Gift */}
+          {/* Prizes */}
           <motion.div 
-            className="info-card sponsor-card"
+            className="info-card prizes-info-card"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
           >
-            <span className="hot-badge">HOT</span>
-            <h4>{tournament.sponsorGift.title}</h4>
-            <p>{tournament.sponsorGift.description}</p>
+            <h3>
+              <Award size={20} />
+              Winner Prizes
+            </h3>
+            <div className="prizes-list">
+              <div className="prize-item">
+                <Star size={18} className="prize-icon-star" />
+                <span>{tournament.prizes?.points || 10} Points</span>
+              </div>
+              <div className="prize-item">
+                <span className="prize-badge-emoji">{tournament.prizes?.badge?.icon || '🏆'}</span>
+                <span>{tournament.prizes?.badge?.name || 'Winner Badge'}</span>
+              </div>
+              <div className="prize-item">
+                <Newspaper size={18} className="prize-icon-news" />
+                <span>{tournament.prizes?.newsPageDays || 2} Days in News Page</span>
+              </div>
+              {tournament.prizes?.additionalPrizes && (
+                <div className="prize-item additional">
+                  <Award size={18} />
+                  <span>{tournament.prizes.additionalPrizes}</span>
+                </div>
+              )}
+            </div>
           </motion.div>
 
           {/* Timeline */}
@@ -242,83 +420,267 @@ const TournamentDetail = () => {
               Timeline
             </h3>
             <div className="timeline">
-              <div className="timeline-item active">
+              <div className={`timeline-item ${['registration', 'live', 'voting', 'completed'].includes(tournament.status) ? 'active' : ''}`}>
                 <div className="timeline-dot"></div>
                 <div className="timeline-content">
                   <span className="timeline-label">Registration</span>
-                  <span className="timeline-date">Apr 1 - Apr 14</span>
+                  <span className="timeline-date">{formatDate(tournament.registrationStart)} - {formatDate(tournament.registrationEnd)}</span>
                 </div>
               </div>
-              <div className="timeline-item">
+              <div className={`timeline-item ${['voting', 'completed'].includes(tournament.status) ? 'active' : ''}`}>
                 <div className="timeline-dot"></div>
                 <div className="timeline-content">
                   <span className="timeline-label">Voting</span>
-                  <span className="timeline-date">Apr 15 - Apr 20</span>
+                  <span className="timeline-date">{formatDate(tournament.votingStart)} - {formatDate(tournament.votingEnd)}</span>
                 </div>
               </div>
-              <div className="timeline-item">
+              <div className={`timeline-item ${tournament.status === 'completed' ? 'active' : ''}`}>
                 <div className="timeline-dot"></div>
                 <div className="timeline-content">
                   <span className="timeline-label">Results</span>
-                  <span className="timeline-date">Apr 21</span>
+                  <span className="timeline-date">After {formatDate(tournament.votingEnd)}</span>
                 </div>
               </div>
             </div>
           </motion.div>
         </div>
 
-        {/* Leaderboard */}
-        <motion.div 
-          className="leaderboard-section"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-        >
-          <div className="section-header">
+        {/* Rules Section */}
+        {tournament.rules && (
+          <motion.div 
+            className="rules-section"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.35 }}
+          >
             <h2>
-              <Trophy size={24} />
-              Leaderboard
+              <FileText size={24} />
+              Rules &amp; Guidelines
             </h2>
-            <span className="total-votes">{tournament.stats.totalVotes.toLocaleString()} total votes</span>
-          </div>
+            <div className="rules-content">
+              {tournament.rules.split('\n').map((line, i) => (
+                <p key={i}>{line}</p>
+              ))}
+            </div>
+          </motion.div>
+        )}
 
-          <div className="leaderboard-grid">
-            {tournament.participants.map((participant, index) => (
-              <motion.div 
-                key={participant.id}
-                className={`leaderboard-card ${index < 3 ? 'top-three' : ''}`}
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.5 + index * 0.1 }}
-              >
-                <div className="rank-badge">#{index + 1}</div>
-                <div className="participant-photo">
-                  <img src={participant.photo.url} alt={participant.user.fullName} />
-                </div>
-                <div className="participant-info">
-                  <span className="participant-name">{participant.user.fullName}</span>
-                  <span className="participant-username">@{participant.user.username}</span>
-                </div>
-                <div className="vote-section">
-                  <span className="vote-count">
-                    <Heart size={16} />
-                    {participant.votes.toLocaleString()}
-                  </span>
-                  <button 
-                    className="vote-btn"
-                    onClick={() => handleVote(participant.id)}
-                  >
-                    Vote
-                  </button>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </motion.div>
+        {/* Leaderboard */}
+        {tournament.participants && tournament.participants.length > 0 && (
+          <motion.div 
+            className="leaderboard-section"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+          >
+            <div className="section-header">
+              <h2>
+                <Trophy size={24} />
+                Leaderboard
+              </h2>
+              <span className="total-votes">{(tournament.stats?.totalVotes || 0).toLocaleString()} total votes</span>
+            </div>
+
+            <div className="leaderboard-grid">
+              {[...tournament.participants]
+                .sort((a, b) => b.votes - a.votes)
+                .map((participant, index) => (
+                <motion.div 
+                  key={participant._id}
+                  className={`leaderboard-card ${index < 3 ? 'top-three' : ''}`}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.5 + index * 0.1 }}
+                >
+                  <div className="rank-badge">#{index + 1}</div>
+                  <div className="participant-photo">
+                    {participant.photo?.url ? (
+                      <img src={participant.photo.url.startsWith('http') ? participant.photo.url : getImageUrl(participant.photo.url)} alt={participant.user?.fullName || 'Participant'} />
+                    ) : (
+                      <div className="no-photo">
+                        <Trophy size={24} />
+                      </div>
+                    )}
+                  </div>
+                  <div className="participant-info">
+                    <span className="participant-name">{participant.user?.fullName || 'Anonymous'}</span>
+                    <span className="participant-username">@{participant.user?.username || 'unknown'}</span>
+                  </div>
+                  <div className="vote-section">
+                    <span className="vote-count">
+                      <Heart size={16} />
+                      {(participant.votes || 0).toLocaleString()}
+                    </span>
+                    {(tournament.status === 'voting' || tournament.status === 'live') && (
+                      <button 
+                        className="vote-btn"
+                        onClick={() => handleVote(participant._id)}
+                      >
+                        Vote
+                      </button>
+                    )}
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+
+        {/* Empty leaderboard state */}
+        {(!tournament.participants || tournament.participants.length === 0) && (
+          <motion.div 
+            className="leaderboard-section empty-leaderboard"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+          >
+            <div className="section-header">
+              <h2>
+                <Trophy size={24} />
+                Participants
+              </h2>
+            </div>
+            <div className="empty-state">
+              <Users size={48} className="empty-icon" />
+              <p>No participants yet. Be the first to register!</p>
+              {tournament.status === 'registration' && !userRegistered && (
+                <button className="btn btn-primary" onClick={openRegisterModal} style={{ marginTop: '1rem' }}>
+                  <Trophy size={18} />
+                  Register Now
+                </button>
+              )}
+            </div>
+          </motion.div>
+        )}
       </div>
+
+      {/* Registration Modal */}
+      {showRegisterModal && (
+        <div className="register-modal-overlay" onClick={closeRegisterModal}>
+          <motion.div 
+            className="register-modal"
+            initial={{ opacity: 0, y: -30, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="register-modal-header">
+              <div>
+                <h2>Register for Tournament</h2>
+                <p className="text-secondary">{tournament.title}</p>
+              </div>
+              <button className="close-btn" onClick={closeRegisterModal}>
+                <X size={24} />
+              </button>
+            </div>
+
+            <form onSubmit={handleRegisterSubmit} className="register-form">
+              {/* Photo Upload */}
+              <div className="form-group">
+                <label>Upload Your Photo *</label>
+                <div 
+                  className={`photo-upload-area ${previewUrl ? 'has-preview' : ''}`}
+                  onClick={() => document.getElementById('tournament-photo-input').click()}
+                >
+                  {previewUrl ? (
+                    <div className="photo-preview">
+                      <img src={previewUrl} alt="Preview" />
+                      <div className="photo-preview-overlay">
+                        <UploadCloud size={24} />
+                        <span>Click to change</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="upload-placeholder">
+                      <UploadCloud size={40} />
+                      <span className="upload-text">Click to upload your photo</span>
+                      <span className="upload-hint">JPEG, PNG, WebP or GIF — Max 10MB</span>
+                    </div>
+                  )}
+                  <input
+                    type="file"
+                    id="tournament-photo-input"
+                    accept="image/jpeg,image/png,image/gif,image/webp"
+                    onChange={handleFileSelect}
+                    style={{ display: 'none' }}
+                  />
+                </div>
+              </div>
+
+              {/* Photo Title */}
+              <div className="form-group">
+                <label htmlFor="reg-photo-title">Photo Title (optional)</label>
+                <input
+                  type="text"
+                  id="reg-photo-title"
+                  className="form-input"
+                  placeholder="Give your photo a title..."
+                  value={photoTitle}
+                  onChange={(e) => setPhotoTitle(e.target.value)}
+                  maxLength={100}
+                />
+              </div>
+
+              {/* Photo Description */}
+              <div className="form-group">
+                <label htmlFor="reg-photo-desc">Description (optional)</label>
+                <textarea
+                  id="reg-photo-desc"
+                  className="form-input"
+                  placeholder="Tell us about your photo..."
+                  value={photoDescription}
+                  onChange={(e) => setPhotoDescription(e.target.value)}
+                  rows={3}
+                  maxLength={500}
+                />
+              </div>
+
+              {/* Prize info reminder */}
+              <div className="register-prize-reminder">
+                <h4>
+                  <Award size={16} />
+                  Winner Prizes
+                </h4>
+                <div className="prize-reminder-items">
+                  <span><Star size={14} /> {tournament.prizes?.points || 10} Points</span>
+                  <span>{tournament.prizes?.badge?.icon || '🏆'} {tournament.prizes?.badge?.name || 'Winner Badge'}</span>
+                  <span><Newspaper size={14} /> {tournament.prizes?.newsPageDays || 2} Days in News</span>
+                </div>
+              </div>
+
+              {/* Submit */}
+              <div className="register-form-actions">
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  onClick={closeRegisterModal}
+                  disabled={isRegistering}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={!selectedFile || isRegistering}
+                >
+                  {isRegistering ? (
+                    <>
+                      <div className="btn-spinner"></div>
+                      Registering...
+                    </>
+                  ) : (
+                    <>
+                      <Trophy size={18} />
+                      Submit &amp; Register
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 };
 
 export default TournamentDetail;
-

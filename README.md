@@ -1,4 +1,4 @@
-# 🎨 ArtDrive - Photography Competition Platform
+# ArtDrive - Photography Competition Platform
 
 > Kazakhstan's Premier Online Platform for Photographer Competitions and Content Sharing
 
@@ -163,7 +163,7 @@ Password: `test123` (or any password in DEV mode)
 ### PROD Mode
 Set `AUTH_MODE=PROD` in backend `.env` to enable full JWT authentication.
 
-## 🎨 Design System
+## Design System
 
 ### Colors
 ```css

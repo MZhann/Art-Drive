@@ -3,7 +3,7 @@
 
 export const API_CONFIG = {
   BASE_URL: process.env.REACT_APP_API_URL || 'http://localhost:5000/api',
-  AUTH_MODE: process.env.REACT_APP_AUTH_MODE || 'DEV', // 'DEV' or 'PROD'
+  AUTH_MODE: process.env.REACT_APP_AUTH_MODE || 'PROD', // 'DEV' or 'PROD'
   SOCKET_URL: process.env.REACT_APP_SOCKET_URL || 'http://localhost:5000',
 };
 

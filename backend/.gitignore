@@ -5,6 +5,8 @@ node_modules/
 .env
 .env.local
 .env.*.local
+.env.staging
+.env.production
 
 # Logs
 logs/
@@ -15,7 +17,7 @@ npm-debug.log*
 dist/
 build/
 
-# Uploads (user content)
+# Uploads (user content — stored in cloud storage in production)
 uploads/*
 !uploads/.gitkeep
 
@@ -30,4 +32,3 @@ Thumbs.db
 
 # Testing
 coverage/
-

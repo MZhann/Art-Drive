@@ -14,6 +14,8 @@ import Dashboard from './pages/Dashboard';
 import Tournaments from './pages/Tournaments';
 import TournamentDetail from './pages/TournamentDetail';
 import Profile from './pages/Profile';
+import Photographers from './pages/Photographers';
+import AdminCreateTournament from './pages/AdminCreateTournament';
 
 // Loading component
 const LoadingScreen = () => (
@@ -66,6 +68,12 @@ const ProtectedRoute = ({ children, roles = [] }) => {
   }
 
   return children;
+};
+
+// Redirect /profile to /profile/:username
+const OwnProfileRedirect = () => {
+  const { user } = useAuth();
+  return <Navigate to={`/profile/${user?.username}`} replace />;
 };
 
 // Public Route (redirect if authenticated)
@@ -123,8 +131,19 @@ function App() {
           <Route index element={<Home />} />
           <Route path="tournaments" element={<Tournaments />} />
           <Route path="tournaments/:id" element={<TournamentDetail />} />
+          <Route path="photographers" element={<Photographers />} />
           <Route path="profile/:username" element={<Profile />} />
         </Route>
+
+        {/* Own profile redirect */}
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <OwnProfileRedirect />
+            </ProtectedRoute>
+          }
+        />
 
         {/* Auth Routes */}
         <Route
@@ -154,6 +173,18 @@ function App() {
           }
         >
           <Route index element={<Dashboard />} />
+        </Route>
+
+        {/* Admin Routes */}
+        <Route
+          path="/admin/tournaments/create"
+          element={
+            <ProtectedRoute roles={['admin']}>
+              <Layout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<AdminCreateTournament />} />
         </Route>
 
         {/* 404 */}

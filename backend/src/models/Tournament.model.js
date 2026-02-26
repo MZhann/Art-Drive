@@ -59,9 +59,25 @@ const tournamentSchema = new mongoose.Schema({
   },
   coverImage: {
     type: String,
-    required: [true, 'Cover image is required']
+    default: ''
+  },
+  // Rules
+  rules: {
+    type: String,
+    default: '',
+    maxlength: [5000, 'Rules cannot exceed 5000 characters']
   },
   // Prize information
+  prizes: {
+    points: { type: Number, default: 10 },
+    badge: {
+      name: { type: String, default: 'Tournament Winner' },
+      description: { type: String, default: 'Won a tournament on ArtDrive' },
+      icon: { type: String, default: '🏆' }
+    },
+    newsPageDays: { type: Number, default: 2 },
+    additionalPrizes: { type: String, default: '' }
+  },
   prizeFund: {
     amount: { type: Number, default: 0 },
     currency: { type: String, default: 'USD' }

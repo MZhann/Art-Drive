@@ -3,6 +3,7 @@ const router = express.Router();
 const { body } = require('express-validator');
 const userController = require('../controllers/user.controller');
 const { auth, authorize } = require('../middleware/auth.middleware');
+const { uploadPortfolio, uploadAvatar, handleMulterError } = require('../middleware/upload.middleware');
 
 // Validation rules
 const updateProfileValidation = [
@@ -32,8 +33,13 @@ router.get('/:id', userController.getUserById);
 
 // Protected routes
 router.put('/profile', auth, updateProfileValidation, userController.updateProfile);
-router.post('/portfolio', auth, authorize('photographer'), userController.addToPortfolio);
+
+// Avatar upload
+router.post('/avatar', auth, uploadAvatar.single('avatar'), handleMulterError, userController.uploadAvatar);
+
+// Portfolio routes
+router.post('/portfolio', auth, authorize('photographer'), uploadPortfolio.single('image'), handleMulterError, userController.addToPortfolio);
+router.put('/portfolio/:photoId', auth, authorize('photographer'), userController.updatePortfolioPhoto);
 router.delete('/portfolio/:photoId', auth, authorize('photographer'), userController.removeFromPortfolio);
 
 module.exports = router;
-

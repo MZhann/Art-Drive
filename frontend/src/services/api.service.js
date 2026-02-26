@@ -46,7 +46,7 @@ api.interceptors.response.use(
         localStorage.removeItem('artdrive_dev_user');
         
         // Redirect to login if not already there
-        if (window.location.pathname !== '/login') {
+        if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
           window.location.href = '/login';
         }
       }
@@ -72,8 +72,26 @@ export const userAPI = {
   updateProfile: (data) => api.put('/users/profile', data),
   getPhotographers: (params) => api.get('/users/photographers', { params }),
   getLeaderboard: (params) => api.get('/users/leaderboard', { params }),
-  addToPortfolio: (data) => api.post('/users/portfolio', data),
-  removeFromPortfolio: (photoId) => api.delete(`/users/portfolio/${photoId}`)
+
+  // Portfolio endpoints
+  addToPortfolio: (formData) => {
+    return api.post('/users/portfolio', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+  },
+  updatePortfolioPhoto: (photoId, data) => api.put(`/users/portfolio/${photoId}`, data),
+  removeFromPortfolio: (photoId) => api.delete(`/users/portfolio/${photoId}`),
+
+  // Avatar upload
+  uploadAvatar: (formData) => {
+    return api.post('/users/avatar', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+  }
 };
 
 // Tournament API
@@ -85,10 +103,23 @@ export const tournamentAPI = {
   create: (data) => api.post('/tournaments', data),
   update: (id, data) => api.put(`/tournaments/${id}`, data),
   delete: (id) => api.delete(`/tournaments/${id}`),
-  register: (id, data) => api.post(`/tournaments/${id}/register`, data),
+  register: (id, formData) => api.post(`/tournaments/${id}/register`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
   vote: (tournamentId, participantId) => api.post(`/tournaments/${tournamentId}/vote/${participantId}`),
   getLeaderboard: (id, params) => api.get(`/tournaments/${id}/leaderboard`, { params })
 };
 
-export default api;
+// Helper to get full image URL
+export const getImageUrl = (imagePath) => {
+  if (!imagePath) return null;
+  // If it's already a full URL, return as-is
+  if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+    return imagePath;
+  }
+  // Build full URL from backend
+  const baseUrl = API_CONFIG.BASE_URL.replace('/api', '');
+  return `${baseUrl}/${imagePath}`;
+};
 
+export default api;
