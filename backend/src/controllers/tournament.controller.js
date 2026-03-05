@@ -1,6 +1,10 @@
 const Tournament = require('../models/Tournament.model');
+const TournamentVote = require('../models/TournamentVote.model');
 const User = require('../models/User.model');
 const { validationResult } = require('express-validator');
+
+// Anti-spam: max votes per minute per user
+const VOTES_PER_MINUTE_LIMIT = 60;
 
 /**
  * @desc    Get all tournaments (with filters)
@@ -331,11 +335,201 @@ const registerForTournament = async (req, res) => {
 };
 
 /**
- * @desc    Vote for a participant
+ * @desc    Vote for a participant (like)
  * @route   POST /api/tournaments/:id/vote/:participantId
  * @access  Private
+ * Anti-spam: one like per user per participant, rate limit 60/min
  */
 const voteForParticipant = async (req, res) => {
+  try {
+    const userId = req.user._id || req.user.id;
+    const tournamentId = req.params.id;
+    const participantId = req.params.participantId;
+
+    const tournament = await Tournament.findById(tournamentId);
+
+    if (!tournament) {
+      return res.status(404).json({
+        success: false,
+        message: 'Tournament not found'
+      });
+    }
+
+    tournament.updateStatus();
+    if (tournament.status !== 'voting' && tournament.status !== 'live') {
+      return res.status(400).json({
+        success: false,
+        message: 'Voting is not open for this tournament'
+      });
+    }
+
+    const participant = tournament.participants.id(participantId);
+    if (!participant) {
+      return res.status(404).json({
+        success: false,
+        message: 'Participant not found'
+      });
+    }
+
+    // Anti-spam: can't vote for your own submission
+    if (participant.user.toString() === userId.toString()) {
+      return res.status(400).json({
+        success: false,
+        message: 'You cannot vote for your own submission'
+      });
+    }
+
+    // Anti-spam: check if already voted for this participant
+    const existingVote = await TournamentVote.findOne({
+      user: userId,
+      tournament: tournamentId,
+      participant: participantId
+    });
+
+    if (existingVote) {
+      return res.status(400).json({
+        success: false,
+        message: existingVote.action === 'like'
+          ? 'You have already voted for this participant'
+          : 'You have already skipped this participant'
+      });
+    }
+
+    // Rate limit: max votes per minute
+    const oneMinAgo = new Date(Date.now() - 60000);
+    const recentVotesCount = await TournamentVote.countDocuments({
+      user: userId,
+      tournament: tournamentId,
+      action: 'like',
+      createdAt: { $gte: oneMinAgo }
+    });
+    if (recentVotesCount >= VOTES_PER_MINUTE_LIMIT) {
+      return res.status(429).json({
+        success: false,
+        message: 'Too many votes. Please wait a moment.'
+      });
+    }
+
+    // Record vote
+    await TournamentVote.create({
+      user: userId,
+      tournament: tournamentId,
+      participant: participantId,
+      action: 'like'
+    });
+
+    participant.votes += 1;
+    tournament.stats.totalVotes += 1;
+    await tournament.save();
+
+    await User.findByIdAndUpdate(participant.user, {
+      $inc: {
+        'stats.totalVotesReceived': 1,
+        points: 10
+      }
+    });
+
+    const io = req.app.get('io');
+    if (io) {
+      const participantsWithVotes = tournament.participants.map((p) => ({
+        participantId: p._id.toString(),
+        userId: p.user.toString(),
+        votes: p.votes
+      }));
+      io.to(`tournament-${tournamentId}`).emit('vote-update', {
+        participantId,
+        votes: participant.votes,
+        totalVotes: tournament.stats.totalVotes,
+        participants: participantsWithVotes
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Vote recorded',
+      data: { votes: participant.votes }
+    });
+  } catch (error) {
+    console.error('Vote error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to record vote'
+    });
+  }
+};
+
+/**
+ * @desc    Skip a participant (dislike / no vote)
+ * @route   POST /api/tournaments/:id/skip/:participantId
+ * @access  Private
+ */
+const skipParticipant = async (req, res) => {
+  try {
+    const userId = req.user._id || req.user.id;
+    const tournamentId = req.params.id;
+    const participantId = req.params.participantId;
+
+    const tournament = await Tournament.findById(tournamentId);
+    if (!tournament) {
+      return res.status(404).json({
+        success: false,
+        message: 'Tournament not found'
+      });
+    }
+
+    tournament.updateStatus();
+    if (tournament.status !== 'voting' && tournament.status !== 'live') {
+      return res.status(400).json({
+        success: false,
+        message: 'Voting is not open for this tournament'
+      });
+    }
+
+    const participant = tournament.participants.id(participantId);
+    if (!participant) {
+      return res.status(404).json({
+        success: false,
+        message: 'Participant not found'
+      });
+    }
+
+    const existing = await TournamentVote.findOne({
+      user: userId,
+      tournament: tournamentId,
+      participant: participantId
+    });
+    if (existing && existing.action === 'like') {
+      return res.status(400).json({
+        success: false,
+        message: 'You have already voted for this participant'
+      });
+    }
+    await TournamentVote.findOneAndUpdate(
+      { user: userId, tournament: tournamentId, participant: participantId },
+      { $set: { action: 'skip', updatedAt: new Date() } },
+      { upsert: true }
+    );
+
+    res.json({
+      success: true,
+      message: 'Skipped',
+      data: { skipped: true }
+    });
+  } catch (error) {
+    console.error('Skip error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to skip'
+    });
+  }
+};
+
+/**
+ * @desc    Start tournament (admin only)
+ * @route   POST /api/tournaments/:id/start
+ * @access  Private (Admin)
+ */
+const startTournament = async (req, res) => {
   try {
     const tournament = await Tournament.findById(req.params.id);
 
@@ -346,60 +540,93 @@ const voteForParticipant = async (req, res) => {
       });
     }
 
-    // Check if voting is open
-    tournament.updateStatus();
-    if (tournament.status !== 'voting' && tournament.status !== 'live') {
+    const validStatuses = ['registration', 'upcoming', 'live'];
+    if (!validStatuses.includes(tournament.status)) {
       return res.status(400).json({
         success: false,
-        message: 'Voting is not open for this tournament'
+        message: `Cannot start tournament in status: ${tournament.status}`
       });
     }
 
-    // Find participant
-    const participant = tournament.participants.id(req.params.participantId);
-
-    if (!participant) {
-      return res.status(404).json({
-        success: false,
-        message: 'Participant not found'
-      });
+    tournament.status = 'voting';
+    const now = new Date();
+    // Adjust all date boundaries so updateStatus() keeps status as 'voting'
+    if (new Date(tournament.registrationEnd) > now) {
+      tournament.registrationEnd = now;
     }
-
-    // Increment vote
-    participant.votes += 1;
-    tournament.stats.totalVotes += 1;
+    if (new Date(tournament.votingStart) > now) {
+      tournament.votingStart = now;
+    }
     await tournament.save();
-
-    // Update participant's total votes received
-    await User.findByIdAndUpdate(participant.user, {
-      $inc: { 
-        'stats.totalVotesReceived': 1,
-        'points': 10 // Award points for receiving a vote
-      }
-    });
-
-    // Emit real-time update via Socket.IO
-    const io = req.app.get('io');
-    if (io) {
-      io.to(`tournament-${req.params.id}`).emit('vote-update', {
-        participantId: req.params.participantId,
-        votes: participant.votes,
-        totalVotes: tournament.stats.totalVotes
-      });
-    }
 
     res.json({
       success: true,
-      message: 'Vote recorded',
+      message: 'Tournament started. Voting is now open.',
+      data: { tournament }
+    });
+  } catch (error) {
+    console.error('Start tournament error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to start tournament'
+    });
+  }
+};
+
+/**
+ * @desc    Get vote progress for current user (voted IDs, my participant votes)
+ * @route   GET /api/tournaments/:id/vote-progress
+ * @access  Private
+ */
+const getVoteProgress = async (req, res) => {
+  try {
+    const userId = req.user._id || req.user.id;
+    const tournamentId = req.params.id;
+
+    const tournament = await Tournament.findById(tournamentId)
+      .populate('participants.user', 'username fullName avatar')
+      .lean();
+
+    if (!tournament) {
+      return res.status(404).json({
+        success: false,
+        message: 'Tournament not found'
+      });
+    }
+
+    const votes = await TournamentVote.find({
+      user: userId,
+      tournament: tournamentId
+    }).select('participant action');
+
+    const votedParticipantIds = votes.map((v) => v.participant.toString());
+    const uid = userId.toString();
+    const myParticipant = tournament.participants.find((p) => {
+      const pu = p.user?._id || p.user;
+      return pu && pu.toString() === uid;
+    });
+
+    res.json({
+      success: true,
       data: {
-        votes: participant.votes
+        votedParticipantIds,
+        myParticipantVotes: myParticipant ? myParticipant.votes : 0,
+        isParticipant: !!myParticipant,
+        totalParticipants: tournament.participants.length,
+        participants: tournament.participants,
+        tournament: {
+          id: tournament._id,
+          title: tournament.title,
+          category: tournament.category,
+          status: tournament.status
+        }
       }
     });
   } catch (error) {
-    console.error('Vote error:', error);
+    console.error('Get vote progress error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to record vote'
+      message: 'Failed to get vote progress'
     });
   }
 };
@@ -530,6 +757,9 @@ module.exports = {
   updateTournament,
   registerForTournament,
   voteForParticipant,
+  skipParticipant,
+  startTournament,
+  getVoteProgress,
   getTournamentLeaderboard,
   getLiveTournaments,
   getUpcomingTournaments,

@@ -13,6 +13,7 @@ import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Tournaments from './pages/Tournaments';
 import TournamentDetail from './pages/TournamentDetail';
+import TournamentVoting from './pages/TournamentVoting';
 import Profile from './pages/Profile';
 import Photographers from './pages/Photographers';
 import AdminCreateTournament from './pages/AdminCreateTournament';
@@ -131,6 +132,7 @@ function App() {
           <Route index element={<Home />} />
           <Route path="tournaments" element={<Tournaments />} />
           <Route path="tournaments/:id" element={<TournamentDetail />} />
+          <Route path="tournaments/:id/vote" element={<TournamentVoting />} />
           <Route path="photographers" element={<Photographers />} />
           <Route path="profile/:username" element={<Profile />} />
         </Route>

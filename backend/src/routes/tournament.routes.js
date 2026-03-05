@@ -48,9 +48,12 @@ router.get('/:id/leaderboard', tournamentController.getTournamentLeaderboard);
 
 // Protected routes
 router.post('/:id/register', auth, authorize('photographer'), uploadTournament.single('photo'), handleMulterError, tournamentController.registerForTournament);
+router.get('/:id/vote-progress', auth, tournamentController.getVoteProgress);
 router.post('/:id/vote/:participantId', auth, tournamentController.voteForParticipant);
+router.post('/:id/skip/:participantId', auth, tournamentController.skipParticipant);
 
 // Admin routes
+router.post('/:id/start', auth, authorize('admin'), tournamentController.startTournament);
 router.post('/', auth, authorize('admin'), createTournamentValidation, tournamentController.createTournament);
 router.put('/:id', auth, authorize('admin'), tournamentController.updateTournament);
 router.delete('/:id', auth, authorize('admin'), tournamentController.deleteTournament);

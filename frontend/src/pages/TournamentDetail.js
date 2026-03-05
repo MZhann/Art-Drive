@@ -23,7 +23,7 @@ import './TournamentDetail.css';
 const TournamentDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isAdmin } = useAuth();
   const [tournament, setTournament] = useState(null);
   const [countdown, setCountdown] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
   const [isLoading, setIsLoading] = useState(true);
@@ -322,21 +322,48 @@ const TournamentDetail = () => {
             )}
 
             {/* Action Buttons */}
-            {tournament.status === 'registration' && (
-              <div className="hero-actions">
-                {userRegistered ? (
-                  <button className="btn btn-success btn-lg" disabled>
-                    <CheckCircle size={20} />
-                    You're Registered!
-                  </button>
-                ) : (
-                  <button className="btn btn-primary btn-lg" onClick={openRegisterModal}>
-                    <Trophy size={20} />
-                    Register as Contestant
-                  </button>
-                )}
-              </div>
-            )}
+            <div className="hero-actions">
+              {tournament.status === 'registration' && (
+                <>
+                  {userRegistered ? (
+                    <button className="btn btn-success btn-lg" disabled>
+                      <CheckCircle size={20} />
+                      You're Registered!
+                    </button>
+                  ) : (
+                    <button className="btn btn-primary btn-lg" onClick={openRegisterModal}>
+                      <Trophy size={20} />
+                      Register as Contestant
+                    </button>
+                  )}
+                  {isAdmin() && (
+                    <button
+                      className="btn btn-outline btn-lg"
+                      onClick={async () => {
+                        try {
+                          const res = await tournamentAPI.start(id);
+                          if (res.data.success) {
+                            toast.success('Tournament started!');
+                            fetchTournament();
+                          }
+                        } catch (err) {
+                          toast.error(err.response?.data?.message || 'Failed to start');
+                        }
+                      }}
+                    >
+                      <Trophy size={20} />
+                      Start Tournament
+                    </button>
+                  )}
+                </>
+              )}
+              {(tournament.status === 'voting' || tournament.status === 'live') && (
+                <Link to={`/tournaments/${id}/vote`} className="btn btn-primary btn-lg">
+                  <Heart size={20} />
+                  Join Tournament
+                </Link>
+              )}
+            </div>
           </motion.div>
         </div>
       </div>

@@ -107,6 +107,9 @@ export const tournamentAPI = {
     headers: { 'Content-Type': 'multipart/form-data' }
   }),
   vote: (tournamentId, participantId) => api.post(`/tournaments/${tournamentId}/vote/${participantId}`),
+  skip: (tournamentId, participantId) => api.post(`/tournaments/${tournamentId}/skip/${participantId}`),
+  start: (tournamentId) => api.post(`/tournaments/${tournamentId}/start`),
+  getVoteProgress: (tournamentId) => api.get(`/tournaments/${tournamentId}/vote-progress`),
   getLeaderboard: (id, params) => api.get(`/tournaments/${id}/leaderboard`, { params })
 };
 
@@ -119,7 +122,8 @@ export const getImageUrl = (imagePath) => {
   }
   // Build full URL from backend
   const baseUrl = API_CONFIG.BASE_URL.replace('/api', '');
-  return `${baseUrl}/${imagePath}`;
+  const cleanPath = imagePath.startsWith('/') ? imagePath.slice(1) : imagePath;
+  return `${baseUrl}/${cleanPath}`;
 };
 
 export default api;
