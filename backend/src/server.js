@@ -13,6 +13,7 @@ dotenv.config();
 const authRoutes = require('./routes/auth.routes');
 const userRoutes = require('./routes/user.routes');
 const tournamentRoutes = require('./routes/tournament.routes');
+const jobRoutes = require('./routes/job.routes');
 
 // Import seed
 const seedAdmin = require('./seeds/adminSeed');
@@ -49,6 +50,7 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/tournaments', tournamentRoutes);
+app.use('/api/jobs', jobRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

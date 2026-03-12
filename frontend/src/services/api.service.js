@@ -113,6 +113,20 @@ export const tournamentAPI = {
   getLeaderboard: (id, params) => api.get(`/tournaments/${id}/leaderboard`, { params })
 };
 
+// Job API
+export const jobAPI = {
+  getAll: (params) => api.get('/jobs', { params }),
+  getById: (id) => api.get(`/jobs/${id}`),
+  create: (data) => api.post('/jobs', data),
+  getMyJobs: (params) => api.get('/jobs/my-jobs/list', { params }),
+  apply: (id, data) => api.post(`/jobs/${id}/apply`, data),
+  getApplications: (id) => api.get(`/jobs/${id}/applications`),
+  updateApplicationStatus: (jobId, applicationId, status) => 
+    api.patch(`/jobs/${jobId}/applications/${applicationId}`, { status }),
+  updateStatus: (id, status) => api.patch(`/jobs/${id}/status`, { status }),
+  delete: (id) => api.delete(`/jobs/${id}`)
+};
+
 // Helper to get full image URL
 export const getImageUrl = (imagePath) => {
   if (!imagePath) return null;

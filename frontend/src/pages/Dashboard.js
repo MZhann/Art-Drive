@@ -85,7 +85,7 @@ const Dashboard = () => {
               </Link>
             )}
             {user?.role === 'employer' && (
-              <Link to="/jobs/create" className="btn btn-primary">
+              <Link to="/employer/dashboard?create=true" className="btn btn-primary">
                 <Plus size={18} />
                 Post a Job
               </Link>
@@ -343,7 +343,7 @@ const Dashboard = () => {
                   )}
                   {user?.role === 'employer' && (
                     <>
-                      <Link to="/jobs/create" className="action-btn">
+                      <Link to="/employer/dashboard?create=true" className="action-btn">
                         <Plus size={20} />
                         <span>Post Job</span>
                       </Link>

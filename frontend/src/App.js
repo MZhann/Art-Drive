@@ -17,6 +17,10 @@ import TournamentVoting from './pages/TournamentVoting';
 import Profile from './pages/Profile';
 import Photographers from './pages/Photographers';
 import AdminCreateTournament from './pages/AdminCreateTournament';
+import Jobs from './pages/Jobs';
+import JobDetail from './pages/JobDetail';
+import EmployerDashboard from './pages/EmployerDashboard';
+import MyApplications from './pages/MyApplications';
 
 // Loading component
 const LoadingScreen = () => (
@@ -135,6 +139,8 @@ function App() {
           <Route path="tournaments/:id/vote" element={<TournamentVoting />} />
           <Route path="photographers" element={<Photographers />} />
           <Route path="profile/:username" element={<Profile />} />
+          <Route path="jobs" element={<Jobs />} />
+          <Route path="jobs/:id" element={<JobDetail />} />
         </Route>
 
         {/* Own profile redirect */}
@@ -176,6 +182,40 @@ function App() {
         >
           <Route index element={<Dashboard />} />
         </Route>
+
+        {/* Employer Routes */}
+        <Route
+          path="/employer/dashboard"
+          element={
+            <ProtectedRoute roles={['employer']}>
+              <Layout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<EmployerDashboard />} />
+        </Route>
+
+        {/* Photographer Routes */}
+        <Route
+          path="/my-applications"
+          element={
+            <ProtectedRoute roles={['photographer']}>
+              <Layout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<MyApplications />} />
+        </Route>
+        
+        {/* Redirect /jobs/create to employer dashboard */}
+        <Route
+          path="/jobs/create"
+          element={
+            <ProtectedRoute roles={['employer']}>
+              <Navigate to="/employer/dashboard" replace />
+            </ProtectedRoute>
+          }
+        />
 
         {/* Admin Routes */}
         <Route

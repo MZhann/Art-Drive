@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { jobAPI } from '../../services/api.service';
 import { 
   Trophy, 
   User, 
@@ -12,7 +13,9 @@ import {
   Bell,
   Settings,
   Plus,
-  Shield
+  Shield,
+  Briefcase,
+  CheckCircle
 } from 'lucide-react';
 import './Navbar.css';
 
@@ -22,6 +25,9 @@ const Navbar = () => {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const handleLogout = async () => {
     await logout();
@@ -33,9 +39,69 @@ const Navbar = () => {
     return location.pathname === path || location.pathname.startsWith(path + '/');
   };
 
+  // Fetch notifications for photographers (accepted applications)
+  const fetchNotifications = useCallback(async () => {
+    if (!isAuthenticated || user?.role !== 'photographer') {
+      return;
+    }
+
+    try {
+      const response = await jobAPI.getAll({ page: 1, limit: 1000, status: 'open' });
+      if (response.data.success) {
+        const allJobs = response.data.data.jobs;
+        const acceptedApplications = [];
+
+        for (const job of allJobs) {
+          try {
+            const jobDetailResponse = await jobAPI.getById(job._id);
+            if (jobDetailResponse.data.success) {
+              const jobDetail = jobDetailResponse.data.data.job;
+              const application = jobDetail.applications?.find(
+                app => (app.photographer?._id === user.id || app.photographer === user.id) && app.status === 'accepted'
+              );
+              if (application) {
+                acceptedApplications.push({
+                  id: `${job._id}-${application._id}`,
+                  jobId: job._id,
+                  jobTitle: job.title,
+                  employerName: jobDetail.employer?.fullName,
+                  appliedAt: application.appliedAt,
+                  read: localStorage.getItem(`notification-${job._id}-${application._id}`) === 'read'
+                });
+              }
+            }
+          } catch (err) {
+            // Skip if job detail fetch fails
+          }
+        }
+
+        setNotifications(acceptedApplications);
+        setUnreadCount(acceptedApplications.filter(n => !n.read).length);
+      }
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+    }
+  }, [isAuthenticated, user]);
+
+  useEffect(() => {
+    if (isAuthenticated && user?.role === 'photographer') {
+      fetchNotifications();
+      // Refresh notifications every 30 seconds
+      const interval = setInterval(fetchNotifications, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [isAuthenticated, user, fetchNotifications]);
+
+  const handleNotificationClick = (notification) => {
+    localStorage.setItem(`notification-${notification.jobId}-${notification.id.split('-')[1]}`, 'read');
+    setShowNotifications(false);
+    navigate(`/jobs/${notification.jobId}`);
+  };
+
   const navLinks = [
     { path: '/tournaments', label: 'Tournaments', icon: Trophy },
     { path: '/photographers', label: 'Photographers', icon: Camera },
+    { path: '/jobs', label: 'Find Work', icon: Briefcase },
   ];
 
   // Add admin link to create tournament if user is admin
@@ -86,10 +152,58 @@ const Navbar = () => {
           {isAuthenticated ? (
             <>
               {/* Notifications */}
-              <button className="nav-icon-btn">
-                <Bell size={20} />
-                <span className="notification-dot"></span>
-              </button>
+              {user?.role === 'photographer' && (
+                <div className="notification-container">
+                  <button 
+                    className="nav-icon-btn"
+                    onClick={() => setShowNotifications(!showNotifications)}
+                  >
+                    <Bell size={20} />
+                    {unreadCount > 0 && (
+                      <span className="notification-badge">{unreadCount}</span>
+                    )}
+                  </button>
+                  {showNotifications && notifications.length > 0 && (
+                    <>
+                      <div 
+                        className="notification-overlay"
+                        onClick={() => setShowNotifications(false)}
+                      />
+                      <div className="notification-dropdown">
+                        <div className="notification-header">
+                          <h3>Notifications</h3>
+                          <button onClick={() => setShowNotifications(false)}>×</button>
+                        </div>
+                        <div className="notification-list">
+                          {notifications.map((notification) => (
+                            <div
+                              key={notification.id}
+                              className={`notification-item ${!notification.read ? 'unread' : ''}`}
+                              onClick={() => handleNotificationClick(notification)}
+                            >
+                              <CheckCircle size={16} className="notification-icon" />
+                              <div className="notification-content">
+                                <p className="notification-title">Application Accepted!</p>
+                                <p className="notification-text">
+                                  Your application for <strong>{notification.jobTitle}</strong> has been accepted by {notification.employerName}
+                                </p>
+                                <span className="notification-time">
+                                  {new Date(notification.appliedAt).toLocaleDateString()}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="notification-footer">
+                          <Link to="/my-applications" onClick={() => setShowNotifications(false)}>
+                            View All Applications
+                          </Link>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
 
               {/* User Menu */}
               <div className="user-menu-container">
@@ -143,6 +257,32 @@ const Navbar = () => {
                         <Settings size={18} />
                         <span>Settings</span>
                       </Link>
+                      {user?.role === 'employer' && (
+                        <>
+                          <div className="user-menu-divider" />
+                          <Link 
+                            to="/employer/dashboard" 
+                            className="user-menu-item"
+                            onClick={() => setUserMenuOpen(false)}
+                          >
+                            <Briefcase size={18} />
+                            <span>My Jobs</span>
+                          </Link>
+                        </>
+                      )}
+                      {user?.role === 'photographer' && (
+                        <>
+                          <div className="user-menu-divider" />
+                          <Link 
+                            to="/my-applications" 
+                            className="user-menu-item"
+                            onClick={() => setUserMenuOpen(false)}
+                          >
+                            <Briefcase size={18} />
+                            <span>My Applications</span>
+                          </Link>
+                        </>
+                      )}
                       {isAdmin() && (
                         <>
                           <div className="user-menu-divider" />

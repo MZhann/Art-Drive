@@ -61,6 +61,11 @@ const userSchema = new mongoose.Schema({
     behance: { type: String, default: '' },
     website: { type: String, default: '' }
   },
+  // Contact information (for employers and photographers)
+  contact: {
+    whatsapp: { type: String, default: '' },
+    telegram: { type: String, default: '' }
+  },
   // Gamification
   points: {
     type: Number,
