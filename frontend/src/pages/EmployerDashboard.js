@@ -58,18 +58,6 @@ const EmployerDashboard = () => {
 
   const [tagInput, setTagInput] = useState('');
 
-  useEffect(() => {
-    if (!isAuthenticated || user?.role !== 'employer') {
-      navigate('/dashboard');
-      return;
-    }
-    // Check if we should open create tab (from query param or state)
-    if (location.search.includes('create=true') || location.state?.openCreate) {
-      setActiveTab('create');
-    }
-    fetchMyJobs();
-  }, [isAuthenticated, user, location, navigate, fetchMyJobs]);
-
   const fetchMyJobs = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -84,6 +72,29 @@ const EmployerDashboard = () => {
       setIsLoading(false);
     }
   }, []);
+
+  // eslint-disable-next-line no-use-before-define
+  useEffect(() => {
+    if (!isAuthenticated || user?.role !== 'employer') {
+      navigate('/dashboard');
+      return;
+    }
+    // Check if we should open create tab (from query param or state)
+    if (location.search.includes('create=true') || location.state?.openCreate) {
+      setActiveTab('create');
+    }
+    // Initialize contact info from user profile
+    if (user?.contact) {
+      setFormData(prev => ({
+        ...prev,
+        contact: {
+          whatsapp: user.contact.whatsapp || '',
+          telegram: user.contact.telegram || ''
+        }
+      }));
+    }
+    fetchMyJobs();
+  }, [isAuthenticated, user, location, navigate, fetchMyJobs]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;

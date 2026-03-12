@@ -25,14 +25,6 @@ const MyApplications = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState('all'); // 'all', 'pending', 'accepted', 'rejected'
 
-  useEffect(() => {
-    if (!isAuthenticated || user?.role !== 'photographer') {
-      navigate('/dashboard');
-      return;
-    }
-    fetchMyApplications();
-  }, [isAuthenticated, user, navigate, fetchMyApplications]);
-
   const fetchMyApplications = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -50,6 +42,15 @@ const MyApplications = () => {
       setIsLoading(false);
     }
   }, []);
+
+  // eslint-disable-next-line no-use-before-define
+  useEffect(() => {
+    if (!isAuthenticated || user?.role !== 'photographer') {
+      navigate('/dashboard');
+      return;
+    }
+    fetchMyApplications();
+  }, [isAuthenticated, user, navigate, fetchMyApplications]);
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {
