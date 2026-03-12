@@ -3,12 +3,9 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
-import { jobAPI, getImageUrl } from '../services/api.service';
+import { jobAPI } from '../services/api.service';
 import {
   Briefcase,
-  CheckCircle,
-  XCircle,
-  Clock,
   DollarSign,
   MapPin,
   Calendar,
@@ -34,53 +31,25 @@ const MyApplications = () => {
       return;
     }
     fetchMyApplications();
-  }, [isAuthenticated, user, navigate]);
+  }, [isAuthenticated, user, navigate, fetchMyApplications]);
 
   const fetchMyApplications = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Fetch all jobs (including closed ones to see history)
-      const response = await jobAPI.getAll({ page: 1, limit: 1000 });
+      const response = await jobAPI.getMyApplications();
       if (response.data.success) {
-        const allJobs = response.data.data.jobs;
-        const myApplications = [];
-
-        // Fetch job details in parallel (limited to avoid too many requests)
-        const jobPromises = allJobs.slice(0, 50).map(job => 
-          jobAPI.getById(job._id).catch(() => null)
-        );
-
-        const jobDetails = await Promise.all(jobPromises);
-
-        jobDetails.forEach((jobDetailResponse, index) => {
-          if (jobDetailResponse?.data?.success) {
-            const jobDetail = jobDetailResponse.data.data.job;
-            const application = jobDetail.applications?.find(
-              app => {
-                const photographerId = app.photographer?._id || app.photographer;
-                return photographerId?.toString() === user.id?.toString();
-              }
-            );
-            if (application) {
-              myApplications.push({
-                ...application,
-                job: jobDetail
-              });
-            }
-          }
-        });
-
-        // Sort by applied date (newest first)
-        myApplications.sort((a, b) => new Date(b.appliedAt) - new Date(a.appliedAt));
-        setApplications(myApplications);
+        setApplications(response.data.data.applications || []);
+      } else {
+        setApplications([]);
       }
     } catch (error) {
       toast.error('Failed to load your applications');
       console.error('Error fetching applications:', error);
+      setApplications([]);
     } finally {
       setIsLoading(false);
     }
-  }, [user]);
+  }, []);
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {

@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
-import { jobAPI, getImageUrl } from '../services/api.service';
+import { jobAPI } from '../services/api.service';
 import {
   Briefcase,
   Search,
@@ -12,13 +12,11 @@ import {
   DollarSign,
   Calendar,
   Clock,
-  User,
   CheckCircle,
   XCircle,
   Send,
   Loader,
-  Eye,
-  MessageCircle
+  Eye
 } from 'lucide-react';
 import './Jobs.css';
 

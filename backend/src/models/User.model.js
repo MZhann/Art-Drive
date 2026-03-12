@@ -66,6 +66,11 @@ const userSchema = new mongoose.Schema({
     whatsapp: { type: String, default: '' },
     telegram: { type: String, default: '' }
   },
+  // Contact visibility settings
+  showContactPublicly: {
+    type: Boolean,
+    default: false
+  },
   // Gamification
   points: {
     type: Number,
@@ -159,8 +164,10 @@ userSchema.methods.calculateLevel = function() {
 };
 
 // Get public profile (without sensitive data)
-userSchema.methods.getPublicProfile = function() {
-  return {
+// viewerId: ID of the user viewing the profile (optional)
+// isHiredBy: whether the viewer was hired by this user (for employers)
+userSchema.methods.getPublicProfile = function(viewerId = null, isHiredBy = false) {
+  const profile = {
     id: this._id,
     username: this.username,
     fullName: this.fullName,
@@ -176,8 +183,24 @@ userSchema.methods.getPublicProfile = function() {
     stats: this.stats,
     companyName: this.companyName,
     isVerified: this.isVerified,
-    createdAt: this.createdAt
+    createdAt: this.createdAt,
+    showContactPublicly: this.showContactPublicly
   };
+
+  // Show contact info if:
+  // 1. Viewer is the profile owner
+  // 2. showContactPublicly is true
+  // 3. Viewer was hired by this employer (isHiredBy = true)
+  const shouldShowContact = 
+    (viewerId && viewerId.toString() === this._id.toString()) ||
+    this.showContactPublicly ||
+    isHiredBy;
+
+  if (shouldShowContact) {
+    profile.contact = this.contact;
+  }
+
+  return profile;
 };
 
 module.exports = mongoose.model('User', userSchema);

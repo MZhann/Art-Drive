@@ -16,13 +16,10 @@ import {
   Clock,
   Eye,
   MessageCircle,
-  ExternalLink,
   Loader,
   ArrowLeft,
   User,
   Award,
-  Phone,
-  Send,
   Star
 } from 'lucide-react';
 import './EmployerDashboard.css';
@@ -71,7 +68,7 @@ const EmployerDashboard = () => {
       setActiveTab('create');
     }
     fetchMyJobs();
-  }, [isAuthenticated, user, location]);
+  }, [isAuthenticated, user, location, navigate, fetchMyJobs]);
 
   const fetchMyJobs = useCallback(async () => {
     setIsLoading(true);

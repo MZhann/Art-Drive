@@ -20,7 +20,9 @@ import {
   Trash2,
   Save,
   Image as ImageIcon,
-  Loader
+  Loader,
+  Phone,
+  MessageCircle
 } from 'lucide-react';
 import './Profile.css';
 
@@ -245,6 +247,37 @@ const Profile = () => {
                     </a>
                   )}
                 </div>
+
+                {/* Contact Information - Show if visible */}
+                {profileUser.contact && (profileUser.contact.whatsapp || profileUser.contact.telegram) && (
+                  <div className="contact-info">
+                    <h4>Contact</h4>
+                    <div className="contact-buttons">
+                      {profileUser.contact.whatsapp && (
+                        <a
+                          href={`https://wa.me/${profileUser.contact.whatsapp.replace(/\D/g, '')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="contact-btn whatsapp"
+                        >
+                          <Phone size={16} />
+                          WhatsApp: {profileUser.contact.whatsapp}
+                        </a>
+                      )}
+                      {profileUser.contact.telegram && (
+                        <a
+                          href={`https://t.me/${profileUser.contact.telegram.replace('@', '')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="contact-btn telegram"
+                        >
+                          <MessageCircle size={16} />
+                          Telegram: {profileUser.contact.telegram}
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="profile-actions">
@@ -701,12 +734,19 @@ const EditProfileModal = ({ user, onClose, onSave }) => {
     country: user.location?.country || 'Kazakhstan',
     instagram: user.socialLinks?.instagram || '',
     behance: user.socialLinks?.behance || '',
-    website: user.socialLinks?.website || ''
+    website: user.socialLinks?.website || '',
+    whatsapp: user.contact?.whatsapp || '',
+    telegram: user.contact?.telegram || '',
+    showContactPublicly: user.showContactPublicly || false
   });
   const [saving, setSaving] = useState(false);
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value, type, checked } = e.target;
+    setFormData({ 
+      ...formData, 
+      [name]: type === 'checkbox' ? checked : value 
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -724,7 +764,12 @@ const EditProfileModal = ({ user, onClose, onSave }) => {
         instagram: formData.instagram,
         behance: formData.behance,
         website: formData.website
-      }
+      },
+      contact: {
+        whatsapp: formData.whatsapp,
+        telegram: formData.telegram
+      },
+      showContactPublicly: formData.showContactPublicly
     });
     
     setSaving(false);
@@ -843,6 +888,61 @@ const EditProfileModal = ({ user, onClose, onSave }) => {
               placeholder="yourwebsite.com"
             />
           </div>
+
+          {/* Contact Information - Only for employers */}
+          {user.role === 'employer' && (
+            <>
+              <div className="form-divider">
+                <span>Contact Information</span>
+              </div>
+              <p className="section-hint" style={{ marginBottom: 'var(--spacing-md)', fontSize: '0.875rem', color: 'var(--color-text-secondary)' }}>
+                Your contact details will be visible to photographers you hire, and optionally to everyone if you enable public visibility.
+              </p>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label>WhatsApp Number</label>
+                  <input
+                    type="text"
+                    name="whatsapp"
+                    className="input"
+                    value={formData.whatsapp}
+                    onChange={handleChange}
+                    placeholder="e.g., +77001234567"
+                  />
+                  <small>Include country code (e.g., +7 for Kazakhstan)</small>
+                </div>
+                <div className="form-group">
+                  <label>Telegram Username</label>
+                  <input
+                    type="text"
+                    name="telegram"
+                    className="input"
+                    value={formData.telegram}
+                    onChange={handleChange}
+                    placeholder="e.g., @username or username"
+                  />
+                  <small>Enter with or without @ symbol</small>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    name="showContactPublicly"
+                    checked={formData.showContactPublicly}
+                    onChange={handleChange}
+                    style={{ cursor: 'pointer' }}
+                  />
+                  <span>Show my contact information publicly on my profile</span>
+                </label>
+                <small style={{ display: 'block', marginTop: 'var(--spacing-xs)', color: 'var(--color-text-secondary)' }}>
+                  If enabled, anyone can see your contact details. If disabled, only photographers you hire will see them.
+                </small>
+              </div>
+            </>
+          )}
 
           <div className="modal-actions">
             <button 

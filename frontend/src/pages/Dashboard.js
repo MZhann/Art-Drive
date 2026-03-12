@@ -325,19 +325,19 @@ const Dashboard = () => {
                     <>
                       <Link to={`/profile/${user?.username}`} className="action-btn">
                         <Camera size={20} />
-                        <span>Upload Photo</span>
+                        <span>My Portfolio</span>
                       </Link>
                       <Link to="/tournaments" className="action-btn">
                         <Trophy size={20} />
-                        <span>Find Tournament</span>
+                        <span>Tournaments</span>
                       </Link>
                       <Link to="/jobs" className="action-btn">
                         <Briefcase size={20} />
                         <span>Browse Jobs</span>
                       </Link>
-                      <Link to={`/profile/${user?.username}`} className="action-btn">
+                      <Link to="/my-applications" className="action-btn">
                         <Users size={20} />
-                        <span>View Profile</span>
+                        <span>My Applications</span>
                       </Link>
                     </>
                   )}
@@ -351,13 +351,13 @@ const Dashboard = () => {
                         <Camera size={20} />
                         <span>Find Photographers</span>
                       </Link>
-                      <Link to="/applications" className="action-btn">
+                      <Link to="/employer/dashboard" className="action-btn">
                         <Users size={20} />
-                        <span>View Applications</span>
+                        <span>My Jobs</span>
                       </Link>
-                      <Link to="/messages" className="action-btn">
-                        <Star size={20} />
-                        <span>Messages</span>
+                      <Link to="/jobs" className="action-btn">
+                        <Briefcase size={20} />
+                        <span>Browse Jobs</span>
                       </Link>
                     </>
                   )}
@@ -367,17 +367,17 @@ const Dashboard = () => {
                         <Plus size={20} />
                         <span>Create Tournament</span>
                       </Link>
-                      <Link to="/admin/users" className="action-btn">
+                      <Link to="/tournaments" className="action-btn">
+                        <Trophy size={20} />
+                        <span>Manage Tournaments</span>
+                      </Link>
+                      <Link to="/photographers" className="action-btn">
                         <Users size={20} />
-                        <span>Manage Users</span>
+                        <span>View Users</span>
                       </Link>
-                      <Link to="/admin/reports" className="action-btn">
-                        <TrendingUp size={20} />
-                        <span>View Reports</span>
-                      </Link>
-                      <Link to="/admin/settings" className="action-btn">
+                      <Link to={`/profile/${user?.username}`} className="action-btn">
                         <Award size={20} />
-                        <span>Settings</span>
+                        <span>My Profile</span>
                       </Link>
                     </>
                   )}

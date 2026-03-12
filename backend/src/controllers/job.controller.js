@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Job = require('../models/Job.model');
 const User = require('../models/User.model');
 const { validationResult } = require('express-validator');
@@ -388,6 +389,82 @@ const updateApplicationStatus = async (req, res) => {
 };
 
 /**
+ * @desc    Get photographer's applications
+ * @route   GET /api/jobs/my-applications
+ * @access  Private (Photographer)
+ */
+const getMyApplications = async (req, res) => {
+  try {
+    // Find all jobs where the photographer has applied
+    // Convert user.id to ObjectId for proper MongoDB query
+    const photographerId = mongoose.Types.ObjectId.isValid(req.user.id) 
+      ? new mongoose.Types.ObjectId(req.user.id)
+      : req.user.id;
+    
+    const jobs = await Job.find({
+      'applications.photographer': photographerId
+    })
+      .populate('employer', 'username fullName avatar companyName companyDescription contact')
+      .populate('applications.photographer', 'username fullName avatar bio portfolio points level stats location')
+      .sort('-createdAt');
+
+    const applications = [];
+    
+    jobs.forEach(job => {
+      // Find the application for this photographer
+      const application = job.applications.find(
+        app => {
+          const photographerId = app.photographer?._id || app.photographer;
+          return photographerId?.toString() === req.user.id?.toString();
+        }
+      );
+      
+      if (application) {
+        // Convert to plain object and add job info
+        const appObj = application.toObject ? application.toObject() : application;
+        applications.push({
+          ...appObj,
+          job: {
+            _id: job._id,
+            title: job.title,
+            category: job.category,
+            budget: job.budget,
+            budgetType: job.budgetType,
+            location: job.location,
+            status: job.status,
+            deadline: job.deadline,
+            createdAt: job.createdAt,
+            showContactPublicly: job.showContactPublicly,
+            employer: job.employer
+          }
+        });
+      }
+    });
+
+    // Sort by applied date (newest first)
+    applications.sort((a, b) => {
+      const dateA = new Date(a.appliedAt || a.createdAt || 0);
+      const dateB = new Date(b.appliedAt || b.createdAt || 0);
+      return dateB - dateA;
+    });
+
+    res.json({
+      success: true,
+      data: {
+        applications
+      }
+    });
+  } catch (error) {
+    console.error('Get my applications error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch your applications',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+/**
  * @desc    Get applications for a job
  * @route   GET /api/jobs/:id/applications
  * @access  Private (Employer)
@@ -515,6 +592,7 @@ module.exports = {
   getJobs,
   getJobById,
   getMyJobs,
+  getMyApplications,
   applyForJob,
   updateApplicationStatus,
   getJobApplications,

@@ -1,4 +1,5 @@
 const User = require('../models/User.model');
+const Job = require('../models/Job.model');
 const { validationResult } = require('express-validator');
 const fs = require('fs');
 const path = require('path');
@@ -50,10 +51,23 @@ const getUserByUsername = async (req, res) => {
       });
     }
 
+    // Check if viewer was hired by this employer
+    let isHiredBy = false;
+    if (req.user && req.user.role === 'photographer' && user.role === 'employer') {
+      // Check if photographer was hired (accepted) by this employer
+      const hiredJob = await Job.findOne({
+        employer: user._id,
+        selectedPhotographer: req.user.id || req.user._id,
+        status: { $in: ['in-progress', 'completed'] }
+      });
+      isHiredBy = !!hiredJob;
+    }
+
+    const viewerId = req.user ? (req.user.id || req.user._id) : null;
     res.json({
       success: true,
       data: {
-        user: user.getPublicProfile()
+        user: user.getPublicProfile(viewerId, isHiredBy)
       }
     });
   } catch (error) {
@@ -88,7 +102,9 @@ const updateProfile = async (req, res) => {
       'socialLinks',
       'companyName',
       'companyDescription',
-      'avatar'
+      'avatar',
+      'contact',
+      'showContactPublicly'
     ];
 
     const updates = {};

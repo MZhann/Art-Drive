@@ -18,7 +18,6 @@ import {
   Loader,
   CheckCircle,
   XCircle,
-  FileText,
   Tag
 } from 'lucide-react';
 import './JobDetail.css';

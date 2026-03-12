@@ -119,6 +119,7 @@ export const jobAPI = {
   getById: (id) => api.get(`/jobs/${id}`),
   create: (data) => api.post('/jobs', data),
   getMyJobs: (params) => api.get('/jobs/my-jobs/list', { params }),
+  getMyApplications: () => api.get('/jobs/my-applications'),
   apply: (id, data) => api.post(`/jobs/${id}/apply`, data),
   getApplications: (id) => api.get(`/jobs/${id}/applications`),
   updateApplicationStatus: (jobId, applicationId, status) => 
