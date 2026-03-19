@@ -21,6 +21,7 @@ import Jobs from './pages/Jobs';
 import JobDetail from './pages/JobDetail';
 import EmployerDashboard from './pages/EmployerDashboard';
 import MyApplications from './pages/MyApplications';
+import GlobalChat from './pages/GlobalChat';
 
 // Loading component
 const LoadingScreen = () => (
@@ -141,6 +142,7 @@ function App() {
           <Route path="profile/:username" element={<Profile />} />
           <Route path="jobs" element={<Jobs />} />
           <Route path="jobs/:id" element={<JobDetail />} />
+          <Route path="chat" element={<GlobalChat />} />
         </Route>
 
         {/* Own profile redirect */}

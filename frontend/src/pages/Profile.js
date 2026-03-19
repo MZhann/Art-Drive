@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
-import { userAPI, getImageUrl } from '../services/api.service';
+import { userAPI, reviewAPI, getImageUrl } from '../services/api.service';
 import { toast } from 'react-hot-toast';
 import { 
   Camera, 
@@ -22,7 +22,9 @@ import {
   Image as ImageIcon,
   Loader,
   Phone,
-  MessageCircle
+    MessageCircle,
+    ThumbsUp,
+    FileText
 } from 'lucide-react';
 import './Profile.css';
 
@@ -38,6 +40,9 @@ const Profile = () => {
   const [uploadLoading, setUploadLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(null);
   const [selectedPhoto, setSelectedPhoto] = useState(null);
+  const [reviews, setReviews] = useState([]);
+  const [averageRating, setAverageRating] = useState(0);
+  const [totalReviews, setTotalReviews] = useState(0);
 
   const isOwnProfile = isAuthenticated && currentUser?.username === username;
 
@@ -71,9 +76,28 @@ const Profile = () => {
     }
   }, [username]);
 
+  const fetchReviews = useCallback(async (userId) => {
+    try {
+      const response = await reviewAPI.getPhotographerReviews(userId);
+      if (response.data.success) {
+        setReviews(response.data.data.reviews);
+        setAverageRating(response.data.data.averageRating);
+        setTotalReviews(response.data.data.totalReviews);
+      }
+    } catch (error) {
+      console.error('Failed to fetch reviews:', error);
+    }
+  }, []);
+
   useEffect(() => {
     fetchProfile();
   }, [fetchProfile]);
+
+  useEffect(() => {
+    if (profileUser?.id && profileUser.role === 'photographer') {
+      fetchReviews(profileUser.id);
+    }
+  }, [profileUser, fetchReviews]);
 
   // Handle portfolio photo upload
   const handleUploadPhoto = async (uploadData) => {
@@ -339,6 +363,14 @@ const Profile = () => {
                 <span className="stat-value">{profileUser.stats?.totalPhotosUploaded || 0}</span>
                 <span className="stat-label">Photos</span>
               </div>
+              {profileUser.role === 'photographer' && totalReviews > 0 && (
+                <div className="stat-item">
+                  <span className="stat-value" style={{ color: 'var(--color-accent-yellow, #f59e0b)' }}>
+                    {averageRating} <Star size={14} style={{ display: 'inline', verticalAlign: 'middle' }} />
+                  </span>
+                  <span className="stat-label">{totalReviews} Review{totalReviews !== 1 ? 's' : ''}</span>
+                </div>
+              )}
             </div>
           </motion.div>
         </div>
@@ -381,6 +413,15 @@ const Profile = () => {
             <Trophy size={18} />
             Tournaments
           </button>
+          {profileUser.role === 'photographer' && (
+            <button 
+              className={`tab-btn ${activeTab === 'reviews' ? 'active' : ''}`}
+              onClick={() => setActiveTab('reviews')}
+            >
+              <ThumbsUp size={18} />
+              Reviews ({totalReviews})
+            </button>
+          )}
         </div>
 
         {/* Portfolio Grid */}
@@ -470,6 +511,100 @@ const Profile = () => {
               <Trophy size={48} className="empty-icon" />
               <p>Tournament history coming soon</p>
             </div>
+          </motion.div>
+        )}
+
+        {/* Reviews Tab */}
+        {activeTab === 'reviews' && (
+          <motion.div 
+            className="reviews-section"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+          >
+            {reviews.length > 0 ? (
+              <>
+                <div className="reviews-summary">
+                  <div className="avg-rating-big">
+                    <span className="avg-number">{averageRating}</span>
+                    <div className="avg-stars">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Star 
+                          key={star} 
+                          size={20} 
+                          className={star <= Math.round(averageRating) ? 'star-filled' : 'star-empty'}
+                          fill={star <= Math.round(averageRating) ? 'currentColor' : 'none'}
+                        />
+                      ))}
+                    </div>
+                    <span className="avg-count">{totalReviews} review{totalReviews !== 1 ? 's' : ''}</span>
+                  </div>
+                </div>
+                <div className="reviews-list">
+                  {reviews.map((review) => (
+                    <motion.div 
+                      key={review._id}
+                      className="review-card"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                    >
+                      <div className="review-header">
+                        <div className="review-author">
+                          <div className="review-avatar">
+                            {review.employer?.avatar ? (
+                              <img src={getImageUrl(review.employer.avatar)} alt={review.employer.fullName} />
+                            ) : (
+                              <span>{review.employer?.fullName?.charAt(0) || 'E'}</span>
+                            )}
+                          </div>
+                          <div>
+                            <strong>{review.employer?.fullName}</strong>
+                            {review.employer?.companyName && (
+                              <span className="review-company">{review.employer.companyName}</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="review-stars">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <Star 
+                              key={star} 
+                              size={16} 
+                              className={star <= review.rating ? 'star-filled' : 'star-empty'}
+                              fill={star <= review.rating ? 'currentColor' : 'none'}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                      {review.job && (
+                        <div className="review-job-ref">
+                          Job: <strong>{review.job.title}</strong>
+                          <span className="review-category">{review.job.category}</span>
+                        </div>
+                      )}
+                      {review.comment && (
+                        <p className="review-comment">{review.comment}</p>
+                      )}
+                      {review.recommendation && (
+                        <div className="review-recommendation">
+                          <div className="recommendation-header">
+                            <FileText size={16} />
+                            <span>Recommendation Letter</span>
+                          </div>
+                          <p>{review.recommendation}</p>
+                        </div>
+                      )}
+                      <span className="review-date">
+                        {new Date(review.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                      </span>
+                    </motion.div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="empty-state">
+                <ThumbsUp size={48} className="empty-icon" />
+                <p>No reviews yet</p>
+              </div>
+            )}
           </motion.div>
         )}
       </div>

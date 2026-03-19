@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { body } = require('express-validator');
 const jobController = require('../controllers/job.controller');
-const { auth, authorize } = require('../middleware/auth.middleware');
+const { auth, optionalAuth, authorize } = require('../middleware/auth.middleware');
 
 // Validation rules
 const createJobValidation = [
@@ -72,7 +72,7 @@ router.get('/my-jobs', auth, authorize('employer'), jobController.getMyJobs);
 router.get('/my-applications', auth, authorize('photographer'), jobController.getMyApplications);
 
 // Routes with ID parameter (must come after specific routes)
-router.get('/:id', jobController.getJobById);
+router.get('/:id', optionalAuth, jobController.getJobById);
 router.patch('/:id/status', auth, authorize('employer'), jobController.updateJobStatus);
 router.delete('/:id', auth, authorize('employer'), jobController.deleteJob);
 router.get('/:id/applications', auth, authorize('employer'), jobController.getJobApplications);

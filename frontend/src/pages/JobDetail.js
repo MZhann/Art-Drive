@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
-import { jobAPI, getImageUrl } from '../services/api.service';
+import { jobAPI, reviewAPI, getImageUrl } from '../services/api.service';
 import {
   ArrowLeft,
   Briefcase,
@@ -18,7 +18,9 @@ import {
   Loader,
   CheckCircle,
   XCircle,
-  Tag
+  Tag,
+  Star,
+  FileText
 } from 'lucide-react';
 import './JobDetail.css';
 
@@ -35,6 +37,7 @@ const JobDetail = () => {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [myApplication, setMyApplication] = useState(null);
+  const [jobReview, setJobReview] = useState(null);
 
   const fetchJob = useCallback(async () => {
     setIsLoading(true);
@@ -83,6 +86,18 @@ const JobDetail = () => {
   useEffect(() => {
     fetchJob();
   }, [fetchJob]);
+
+  useEffect(() => {
+    if (job?.status === 'completed') {
+      reviewAPI.getJobReview(job._id)
+        .then(res => {
+          if (res.data.success && res.data.data.review) {
+            setJobReview(res.data.data.review);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [job?._id, job?.status]);
 
   const handleApply = () => {
     if (!isAuthenticated) {
@@ -339,6 +354,43 @@ const JobDetail = () => {
                     Employer has made their contact information public. Feel free to reach out!
                   </p>
                 )}
+              </div>
+            )}
+
+            {/* Job Review - shown for completed jobs */}
+            {job.status === 'completed' && jobReview && (
+              <div className="job-section">
+                <h2>Employer Review</h2>
+                <div className="job-review-card">
+                  <div className="job-review-header">
+                    <div className="job-review-stars">
+                      {[1, 2, 3, 4, 5].map((s) => (
+                        <Star
+                          key={s}
+                          size={18}
+                          fill={s <= jobReview.rating ? 'currentColor' : 'none'}
+                          style={{ color: s <= jobReview.rating ? 'var(--color-accent-yellow, #f59e0b)' : 'var(--color-text-muted)' }}
+                        />
+                      ))}
+                      <span className="review-rating-num">{jobReview.rating}/5</span>
+                    </div>
+                    <span className="review-date-sm">
+                      {new Date(jobReview.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </span>
+                  </div>
+                  {jobReview.comment && (
+                    <p className="job-review-comment">{jobReview.comment}</p>
+                  )}
+                  {jobReview.recommendation && (
+                    <div className="job-review-recommendation">
+                      <div className="recommendation-label">
+                        <FileText size={14} />
+                        Recommendation Letter
+                      </div>
+                      <p>{jobReview.recommendation}</p>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 

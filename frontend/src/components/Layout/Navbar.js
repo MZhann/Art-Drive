@@ -15,7 +15,8 @@ import {
   Plus,
   Shield,
   Briefcase,
-  CheckCircle
+  CheckCircle,
+  MessageCircle
 } from 'lucide-react';
 import './Navbar.css';
 
@@ -102,6 +103,7 @@ const Navbar = () => {
     { path: '/tournaments', label: 'Tournaments', icon: Trophy },
     { path: '/photographers', label: 'Photographers', icon: Camera },
     { path: '/jobs', label: 'Find Work', icon: Briefcase },
+    { path: '/chat', label: 'Chat', icon: MessageCircle },
   ];
 
   // Add admin link to create tournament if user is admin

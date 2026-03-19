@@ -128,6 +128,18 @@ export const jobAPI = {
   delete: (id) => api.delete(`/jobs/${id}`)
 };
 
+// Review API
+export const reviewAPI = {
+  completeAndReview: (jobId, data) => api.post(`/reviews/jobs/${jobId}/complete`, data),
+  getPhotographerReviews: (photographerId, params) => api.get(`/reviews/photographer/${photographerId}`, { params }),
+  getJobReview: (jobId) => api.get(`/reviews/jobs/${jobId}`)
+};
+
+// Chat API
+export const chatAPI = {
+  getMessages: (params) => api.get('/chat/messages', { params })
+};
+
 // Helper to get full image URL
 export const getImageUrl = (imagePath) => {
   if (!imagePath) return null;

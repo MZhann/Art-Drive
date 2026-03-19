@@ -3,7 +3,7 @@ import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
-import { jobAPI, userAPI, getImageUrl } from '../services/api.service';
+import { jobAPI, userAPI, reviewAPI, getImageUrl } from '../services/api.service';
 import {
   Briefcase,
   Plus,
@@ -20,7 +20,9 @@ import {
   ArrowLeft,
   User,
   Award,
-  Star
+  Star,
+  X,
+  FileText
 } from 'lucide-react';
 import './EmployerDashboard.css';
 
@@ -34,6 +36,8 @@ const EmployerDashboard = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showApplicationModal, setShowApplicationModal] = useState(false);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [reviewJob, setReviewJob] = useState(null);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -223,6 +227,25 @@ const EmployerDashboard = () => {
       }
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to reject application');
+    }
+  };
+
+  const handleCompleteJob = (job) => {
+    setReviewJob(job);
+    setShowReviewModal(true);
+  };
+
+  const handleSubmitReview = async (jobId, reviewData) => {
+    try {
+      const response = await reviewAPI.completeAndReview(jobId, reviewData);
+      if (response.data.success) {
+        toast.success('Job marked as completed and review submitted!');
+        setShowReviewModal(false);
+        setReviewJob(null);
+        fetchMyJobs();
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to submit review');
     }
   };
 
@@ -540,6 +563,15 @@ const EmployerDashboard = () => {
                           Applications ({job.applications.length})
                         </button>
                       )}
+                      {job.status === 'in-progress' && (
+                        <button
+                          className="btn btn-success btn-sm"
+                          onClick={() => handleCompleteJob(job)}
+                        >
+                          <CheckCircle size={16} />
+                          Complete & Rate
+                        </button>
+                      )}
                     </div>
                   </motion.div>
                 ))}
@@ -767,6 +799,18 @@ const EmployerDashboard = () => {
         )}
       </div>
 
+      {/* Review Modal */}
+      <AnimatePresence>
+        {showReviewModal && reviewJob && (
+          <ReviewModal
+            job={reviewJob}
+            onClose={() => { setShowReviewModal(false); setReviewJob(null); }}
+            onSubmit={handleSubmitReview}
+            getImageUrl={getImageUrl}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Applications Modal */}
       <AnimatePresence>
         {showApplicationModal && selectedJob && (
@@ -887,6 +931,130 @@ const EmployerDashboard = () => {
         )}
       </AnimatePresence>
     </div>
+  );
+};
+
+const ReviewModal = ({ job, onClose, onSubmit, getImageUrl }) => {
+  const [rating, setRating] = useState(0);
+  const [hoverRating, setHoverRating] = useState(0);
+  const [comment, setComment] = useState('');
+  const [recommendation, setRecommendation] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const photographer = job.selectedPhotographer;
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (rating === 0) {
+      toast.error('Please select a rating');
+      return;
+    }
+    setSubmitting(true);
+    await onSubmit(job._id, { rating, comment, recommendation });
+    setSubmitting(false);
+  };
+
+  return (
+    <motion.div
+      className="modal-backdrop"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+    >
+      <motion.div
+        className="modal-content review-modal"
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.9, opacity: 0 }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="modal-header">
+          <h2>Complete Job & Rate Photographer</h2>
+          <button onClick={onClose}><X size={24} /></button>
+        </div>
+
+        <div className="review-job-info">
+          <h3>{job.title}</h3>
+          {photographer && (
+            <div className="review-photographer">
+              <div className="photographer-avatar">
+                {photographer.avatar ? (
+                  <img src={getImageUrl(photographer.avatar)} alt={photographer.fullName} />
+                ) : (
+                  <span>{photographer.fullName?.charAt(0) || 'P'}</span>
+                )}
+              </div>
+              <div>
+                <strong>{photographer.fullName}</strong>
+                <span className="text-muted">@{photographer.username}</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <form onSubmit={handleSubmit} className="review-form">
+          <div className="form-group">
+            <label>Rating *</label>
+            <div className="star-rating">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  type="button"
+                  className={`star-btn ${star <= (hoverRating || rating) ? 'active' : ''}`}
+                  onClick={() => setRating(star)}
+                  onMouseEnter={() => setHoverRating(star)}
+                  onMouseLeave={() => setHoverRating(0)}
+                >
+                  <Star size={28} fill={star <= (hoverRating || rating) ? 'currentColor' : 'none'} />
+                </button>
+              ))}
+              <span className="rating-text">
+                {rating > 0 ? `${rating}/5` : 'Select rating'}
+              </span>
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label>Comment</label>
+            <textarea
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              placeholder="How was your experience working with this photographer?"
+              rows={3}
+              maxLength={2000}
+            />
+          </div>
+
+          <div className="form-group">
+            <label>
+              <FileText size={16} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 4 }} />
+              Recommendation Letter (optional)
+            </label>
+            <textarea
+              value={recommendation}
+              onChange={(e) => setRecommendation(e.target.value)}
+              placeholder="Write a recommendation letter for this photographer that will be displayed on their profile..."
+              rows={5}
+              maxLength={3000}
+            />
+          </div>
+
+          <div className="modal-actions" style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+            <button type="button" className="btn btn-outline" onClick={onClose} disabled={submitting}>
+              Cancel
+            </button>
+            <button type="submit" className="btn btn-success" disabled={submitting || rating === 0}>
+              {submitting ? (
+                <><Loader size={16} className="spin" /> Submitting...</>
+              ) : (
+                <><CheckCircle size={16} /> Complete & Submit Review</>
+              )}
+            </button>
+          </div>
+        </form>
+      </motion.div>
+    </motion.div>
   );
 };
 

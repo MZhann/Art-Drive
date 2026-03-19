@@ -14,9 +14,17 @@ const authRoutes = require('./routes/auth.routes');
 const userRoutes = require('./routes/user.routes');
 const tournamentRoutes = require('./routes/tournament.routes');
 const jobRoutes = require('./routes/job.routes');
+const reviewRoutes = require('./routes/review.routes');
+const chatRoutes = require('./routes/chat.routes');
 
 // Import seed
 const seedAdmin = require('./seeds/adminSeed');
+
+// Import services
+const { startTournamentNotifier } = require('./services/tournamentNotifier');
+
+// Import chat model for socket persistence
+const ChatMessage = require('./models/ChatMessage.model');
 
 // Initialize express app
 const app = express();
@@ -51,6 +59,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/tournaments', tournamentRoutes);
 app.use('/api/jobs', jobRoutes);
+app.use('/api/reviews', reviewRoutes);
+app.use('/api/chat', chatRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -66,14 +76,37 @@ app.get('/api/health', (req, res) => {
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
+  // --- Tournament sockets ---
   socket.on('join-tournament', (tournamentId) => {
     socket.join(`tournament-${tournamentId}`);
     console.log(`User ${socket.id} joined tournament ${tournamentId}`);
   });
 
   socket.on('vote', (data) => {
-    // Broadcast vote update to all users in the tournament room
     io.to(`tournament-${data.tournamentId}`).emit('vote-update', data);
+  });
+
+  // --- Global Chat ---
+  socket.on('join-global-chat', () => {
+    socket.join('global-chat');
+  });
+
+  socket.on('chat-message', async (data) => {
+    try {
+      if (!data.userId || !data.text || !data.text.trim()) return;
+
+      const message = await ChatMessage.create({
+        user: data.userId,
+        text: data.text.trim()
+      });
+
+      const populated = await ChatMessage.findById(message._id)
+        .populate('user', 'username fullName avatar role');
+
+      io.to('global-chat').emit('new-chat-message', populated);
+    } catch (err) {
+      console.error('Chat message error:', err.message);
+    }
   });
 
   socket.on('disconnect', () => {
@@ -114,6 +147,7 @@ async function startServer() {
     await mongoose.connect(mongoUri, { serverSelectionTimeoutMS: 3000 });
     console.log('✅ Connected to MongoDB');
     await seedAdmin();
+    startTournamentNotifier();
   } catch (err) {
     // In production, fail fast — don't try in-memory
     if (process.env.NODE_ENV === 'production') {
@@ -131,6 +165,7 @@ async function startServer() {
       console.log('✅ Connected to In-Memory MongoDB');
       console.log('📝 Note: Data will NOT persist between restarts. Install MongoDB locally for persistent storage.');
       await seedAdmin();
+      startTournamentNotifier();
     } catch (memErr) {
       console.error('❌ Failed to start in-memory MongoDB:', memErr.message);
       console.error('Please install MongoDB locally or provide a MongoDB Atlas URI in .env');
