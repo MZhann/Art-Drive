@@ -17,6 +17,7 @@ const jobRoutes = require('./routes/job.routes');
 const reviewRoutes = require('./routes/review.routes');
 const chatRoutes = require('./routes/chat.routes');
 
+console.log('HI haha');
 // Import seed
 const seedAdmin = require('./seeds/adminSeed');
 

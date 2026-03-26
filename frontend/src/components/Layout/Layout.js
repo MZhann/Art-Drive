@@ -4,6 +4,7 @@ import Navbar from './Navbar';
 import './Layout.css';
 
 const Layout = () => {
+  console.log('Layout');
   return (
     <div className="layout">
       <Navbar />
