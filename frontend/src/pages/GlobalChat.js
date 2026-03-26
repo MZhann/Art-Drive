@@ -5,7 +5,6 @@ import { io } from 'socket.io-client';
 import { useAuth } from '../contexts/AuthContext';
 import { chatAPI, getImageUrl } from '../services/api.service';
 import { API_CONFIG } from '../config/api.config';
-import { toast } from 'react-hot-toast';
 import {
   Send,
   MessageCircle,
