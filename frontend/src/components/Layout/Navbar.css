@@ -421,6 +421,7 @@
 
 .mobile-menu-links {
   display: flex;
+  background-color: #16162f;
   flex-direction: column;
   gap: var(--spacing-sm);
 }
