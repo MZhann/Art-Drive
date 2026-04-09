@@ -2,6 +2,8 @@ const Tournament = require('../models/Tournament.model');
 const TournamentVote = require('../models/TournamentVote.model');
 const User = require('../models/User.model');
 const { validationResult } = require('express-validator');
+const { notifyVoteReceived } = require('../services/notificationService');
+const { awardPointsAndSync, checkAndAwardBadges } = require('../services/badgeService');
 
 // Anti-spam: max votes per minute per user
 const VOTES_PER_MINUTE_LIMIT = 60;
@@ -313,10 +315,10 @@ const registerForTournament = async (req, res) => {
     tournament.stats.totalParticipants = tournament.participants.length;
     await tournament.save();
 
-    // Update user stats
     await User.findByIdAndUpdate(userId, {
       $inc: { 'stats.tournamentsJoined': 1 }
     });
+    await checkAndAwardBadges(userId);
 
     res.status(201).json({
       success: true,
@@ -423,11 +425,17 @@ const voteForParticipant = async (req, res) => {
     await tournament.save();
 
     await User.findByIdAndUpdate(participant.user, {
-      $inc: {
-        'stats.totalVotesReceived': 1,
-        points: 10
-      }
+      $inc: { 'stats.totalVotesReceived': 1 }
     });
+    await awardPointsAndSync(participant.user, 10);
+
+    const voter = await User.findById(userId).select('fullName');
+    notifyVoteReceived(
+      participant.user,
+      voter?.fullName || 'Someone',
+      tournament.title,
+      tournament._id
+    );
 
     const io = req.app.get('io');
     if (io) {

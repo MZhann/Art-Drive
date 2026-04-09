@@ -2,6 +2,8 @@ const cron = require('node-cron');
 const nodemailer = require('nodemailer');
 const Tournament = require('../models/Tournament.model');
 const User = require('../models/User.model');
+const { notifyTournamentReminder, notifyTournamentWon } = require('./notificationService');
+const { awardPointsAndSync, checkAndAwardBadges } = require('./badgeService');
 
 let transporter = null;
 
@@ -26,15 +28,11 @@ function initTransporter() {
 }
 
 async function sendReminderEmails() {
-  if (!transporter) return;
-
   try {
     const now = new Date();
     const fiveMinLater = new Date(now.getTime() + 5 * 60 * 1000);
     const sixMinLater = new Date(now.getTime() + 6 * 60 * 1000);
 
-    // Find tournaments whose votingStart is between 5 and 6 minutes from now
-    // This ensures we only notify once per tournament (cron runs every minute)
     const tournaments = await Tournament.find({
       votingStart: { $gte: fiveMinLater, $lt: sixMinLater },
       status: { $in: ['registration', 'live', 'upcoming'] }
@@ -45,6 +43,12 @@ async function sendReminderEmails() {
 
       const userIds = tournament.participants.map(p => p.user);
       const users = await User.find({ _id: { $in: userIds } }).select('email fullName');
+
+      for (const user of users) {
+        notifyTournamentReminder(user._id, tournament.title, tournament._id);
+      }
+
+      if (!transporter) continue;
 
       const emailPromises = users.map(user => {
         if (!user.email) return Promise.resolve();
@@ -87,15 +91,95 @@ async function sendReminderEmails() {
   }
 }
 
+async function finalizeTournaments() {
+  try {
+    const now = new Date();
+    const oneMinAgo = new Date(now.getTime() - 60 * 1000);
+
+    const tournaments = await Tournament.find({
+      votingEnd: { $gte: oneMinAgo, $lt: now },
+      status: { $ne: 'completed' }
+    }).populate('participants.user', 'fullName');
+
+    for (const tournament of tournaments) {
+      tournament.status = 'completed';
+
+      if (tournament.participants.length === 0) {
+        await tournament.save();
+        continue;
+      }
+
+      const sorted = [...tournament.participants].sort((a, b) => b.votes - a.votes);
+
+      const prizePoints = tournament.prizes?.points || 10;
+      const prizeDistribution = [
+        { position: 1, multiplier: 1.0 },
+        { position: 2, multiplier: 0.6 },
+        { position: 3, multiplier: 0.3 }
+      ];
+
+      const winners = [];
+      for (const dist of prizeDistribution) {
+        const participant = sorted[dist.position - 1];
+        if (!participant || participant.votes === 0) continue;
+
+        const earnedPoints = Math.round(prizePoints * dist.multiplier);
+        const userId = participant.user._id || participant.user;
+
+        winners.push({
+          position: dist.position,
+          user: userId,
+          prize: `${earnedPoints} points`
+        });
+
+        participant.rank = dist.position;
+
+        await awardPointsAndSync(userId, earnedPoints);
+
+        if (dist.position === 1) {
+          await User.findByIdAndUpdate(userId, {
+            $inc: { 'stats.tournamentsWon': 1 }
+          });
+
+          if (tournament.prizes?.badge?.name) {
+            const user = await User.findById(userId);
+            const hasBadge = user.badges.some(b => b.name === tournament.prizes.badge.name);
+            if (!hasBadge) {
+              user.badges.push({
+                name: tournament.prizes.badge.name,
+                description: tournament.prizes.badge.description || `Winner of ${tournament.title}`,
+                icon: tournament.prizes.badge.icon || '🏆',
+                earnedAt: new Date()
+              });
+              await user.save();
+            }
+          }
+
+          await checkAndAwardBadges(userId);
+        }
+
+        await notifyTournamentWon(userId, tournament.title, tournament._id, dist.position, earnedPoints);
+      }
+
+      tournament.winners = winners;
+      await tournament.save();
+
+      console.log(`🏁 Finalized tournament "${tournament.title}" with ${winners.length} winners`);
+    }
+  } catch (error) {
+    console.error('Tournament finalization error:', error);
+  }
+}
+
 function startTournamentNotifier() {
   transporter = initTransporter();
 
-  // Run every minute to check for tournaments starting in 5 minutes
   cron.schedule('* * * * *', () => {
     sendReminderEmails();
+    finalizeTournaments();
   });
 
-  console.log('🔔 Tournament notification scheduler started');
+  console.log('🔔 Tournament notification & finalization scheduler started');
 }
 
 module.exports = { startTournamentNotifier };

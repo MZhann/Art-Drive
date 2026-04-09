@@ -22,6 +22,8 @@ import JobDetail from './pages/JobDetail';
 import EmployerDashboard from './pages/EmployerDashboard';
 import MyApplications from './pages/MyApplications';
 import GlobalChat from './pages/GlobalChat';
+import Notifications from './pages/Notifications';
+import Leaderboard from './pages/Leaderboard';
 
 // Loading component
 const LoadingScreen = () => (
@@ -143,6 +145,8 @@ function App() {
           <Route path="jobs" element={<Jobs />} />
           <Route path="jobs/:id" element={<JobDetail />} />
           <Route path="chat" element={<GlobalChat />} />
+          <Route path="leaderboard" element={<Leaderboard />} />
+          <Route path="notifications" element={<Notifications />} />
         </Route>
 
         {/* Own profile redirect */}

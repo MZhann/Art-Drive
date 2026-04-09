@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { motion } from 'framer-motion';
+import { tournamentAPI, notificationAPI } from '../services/api.service';
 import { 
   Trophy, 
   Camera, 
@@ -16,32 +17,30 @@ import {
 } from 'lucide-react';
 import './Dashboard.css';
 
-// Mock data
-const mockTournaments = [
-  {
-    id: '1',
-    title: 'Abstract Art Challenge',
-    status: 'live',
-    endDate: '2024-04-15',
-    yourRank: 12,
-    totalParticipants: 245
-  },
-  {
-    id: '2',
-    title: 'Street Photography',
-    status: 'upcoming',
-    startDate: '2024-04-20'
-  }
-];
-
-const mockBadges = [
-  { name: 'First Win', icon: '🏆', description: 'Won your first tournament' },
-  { name: 'Rising Star', icon: '⭐', description: 'Reached level 5' },
-  { name: 'Popular', icon: '❤️', description: 'Received 100 votes' }
-];
-
 const Dashboard = () => {
   const { user, isAdmin } = useAuth();
+  const [liveTournaments, setLiveTournaments] = useState([]);
+  const [allBadges, setAllBadges] = useState([]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [tournRes, badgeRes] = await Promise.all([
+          tournamentAPI.getLive(),
+          notificationAPI.getBadges()
+        ]);
+        if (tournRes.data.success) setLiveTournaments(tournRes.data.data.tournaments.slice(0, 3));
+        if (badgeRes.data.success) setAllBadges(badgeRes.data.data.badges);
+      } catch (err) {
+        console.error('Dashboard fetch error:', err);
+      }
+    };
+    fetchData();
+  }, []);
+
+  const userBadges = user?.badges || [];
+  const earnedNames = new Set(userBadges.map(b => b.name));
+  const lockedBadges = allBadges.filter(b => !earnedNames.has(b.name)).slice(0, 3);
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -241,28 +240,21 @@ const Dashboard = () => {
                 </Link>
               </div>
               <div className="card-content">
-                {mockTournaments.length > 0 ? (
+                {liveTournaments.length > 0 ? (
                   <div className="tournament-list-dashboard">
-                    {mockTournaments.map(tournament => (
-                      <div key={tournament.id} className="tournament-item">
+                    {liveTournaments.map(tournament => (
+                      <div key={tournament._id} className="tournament-item">
                         <div className="tournament-item-info">
                           <h4>{tournament.title}</h4>
                           <div className="tournament-meta">
-                            {tournament.status === 'live' ? (
-                              <>
-                                <span className="badge badge-live">Live</span>
-                                <span>Rank #{tournament.yourRank} of {tournament.totalParticipants}</span>
-                              </>
-                            ) : (
-                              <>
-                                <span className="badge">Upcoming</span>
-                                <span>Starts {tournament.startDate}</span>
-                              </>
-                            )}
+                            <span className={`badge ${tournament.status === 'voting' ? 'badge-live' : ''}`}>
+                              {tournament.status === 'voting' ? 'Voting' : tournament.status === 'registration' ? 'Open' : tournament.status}
+                            </span>
+                            <span>{tournament.stats?.totalParticipants || 0} participants</span>
                           </div>
                         </div>
-                        <Link to={`/tournaments/${tournament.id}`} className="btn btn-outline btn-sm">
-                          {tournament.status === 'live' ? 'View' : 'Register'}
+                        <Link to={`/tournaments/${tournament._id}`} className="btn btn-outline btn-sm">
+                          View
                         </Link>
                       </div>
                     ))}
@@ -290,22 +282,39 @@ const Dashboard = () => {
                 </div>
                 <div className="card-content">
                   <div className="badges-grid">
-                    {mockBadges.map((badge, index) => (
-                      <div key={index} className="badge-item">
-                        <span className="badge-icon">{badge.icon}</span>
+                    {userBadges.length > 0 ? (
+                      userBadges.map((badge, index) => (
+                        <div key={index} className="badge-item">
+                          <span className="badge-icon">{badge.icon}</span>
+                          <div className="badge-info">
+                            <span className="badge-name">{badge.name}</span>
+                            <span className="badge-desc">{badge.description}</span>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="badge-item empty-badge">
+                        <span className="badge-icon">🎯</span>
+                        <div className="badge-info">
+                          <span className="badge-name">No badges yet</span>
+                          <span className="badge-desc">Compete to earn your first badge!</span>
+                        </div>
+                      </div>
+                    )}
+                    {lockedBadges.map((badge, index) => (
+                      <div key={`locked-${index}`} className="badge-item locked">
+                        <span className="badge-icon">🔒</span>
                         <div className="badge-info">
                           <span className="badge-name">{badge.name}</span>
                           <span className="badge-desc">{badge.description}</span>
                         </div>
                       </div>
                     ))}
-                    <div className="badge-item locked">
-                      <span className="badge-icon">🔒</span>
-                      <div className="badge-info">
-                        <span className="badge-name">???</span>
-                        <span className="badge-desc">Keep competing to unlock</span>
-                      </div>
-                    </div>
+                  </div>
+                  <div style={{ marginTop: '0.75rem' }}>
+                    <Link to="/leaderboard" className="card-link" style={{ fontSize: '0.85rem' }}>
+                      View Leaderboard <ArrowRight size={14} />
+                    </Link>
                   </div>
                 </div>
               </motion.div>

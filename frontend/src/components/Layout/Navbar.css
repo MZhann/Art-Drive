@@ -500,3 +500,34 @@
   color: var(--color-accent-primary);
 }
 
+/* Notification dropdown improvements */
+.mark-all-btn {
+  background: none;
+  border: none;
+  color: var(--color-accent-primary);
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-sm);
+}
+
+.mark-all-btn:hover {
+  background: rgba(168, 85, 247, 0.1);
+}
+
+.notification-icon-emoji {
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.notification-empty {
+  text-align: center;
+  padding: 1.5rem;
+  color: var(--color-text-secondary);
+  font-size: 0.85rem;
+}
+
+.notification-empty p {
+  margin-top: 0.5rem;
+}
+

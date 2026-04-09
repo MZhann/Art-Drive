@@ -1,7 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { jobAPI } from '../../services/api.service';
+import { notificationAPI } from '../../services/api.service';
+import { API_CONFIG } from '../../config/api.config';
+import io from 'socket.io-client';
 import { 
   Trophy, 
   User, 
@@ -15,10 +17,37 @@ import {
   Plus,
   Shield,
   Briefcase,
-  CheckCircle,
-  MessageCircle
+  Heart,
+  Award,
+  TrendingUp,
+  MessageCircle,
+  Star
 } from 'lucide-react';
 import './Navbar.css';
+
+const NOTIF_ICONS = {
+  vote_received: Heart,
+  tournament_reminder: Bell,
+  tournament_won: Trophy,
+  badge_earned: Award,
+  level_up: TrendingUp,
+  job_application: Briefcase,
+  job_accepted: Star,
+  job_rejected: X,
+  job_completed: Star,
+  system: Bell
+};
+
+function timeAgo(dateStr) {
+  const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+  if (seconds < 60) return 'just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
 
 const Navbar = () => {
   const { user, isAuthenticated, logout, isDevMode, isAdmin } = useAuth();
@@ -29,6 +58,7 @@ const Navbar = () => {
   const [notifications, setNotifications] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const socketRef = useRef(null);
 
   const handleLogout = async () => {
     await logout();
@@ -40,68 +70,61 @@ const Navbar = () => {
     return location.pathname === path || location.pathname.startsWith(path + '/');
   };
 
-  // Fetch notifications for photographers (accepted applications)
   const fetchNotifications = useCallback(async () => {
-    if (!isAuthenticated || user?.role !== 'photographer') {
-      return;
-    }
-
+    if (!isAuthenticated) return;
     try {
-      const response = await jobAPI.getAll({ page: 1, limit: 1000, status: 'open' });
-      if (response.data.success) {
-        const allJobs = response.data.data.jobs;
-        const acceptedApplications = [];
-
-        for (const job of allJobs) {
-          try {
-            const jobDetailResponse = await jobAPI.getById(job._id);
-            if (jobDetailResponse.data.success) {
-              const jobDetail = jobDetailResponse.data.data.job;
-              const application = jobDetail.applications?.find(
-                app => (app.photographer?._id === user.id || app.photographer === user.id) && app.status === 'accepted'
-              );
-              if (application) {
-                acceptedApplications.push({
-                  id: `${job._id}-${application._id}`,
-                  jobId: job._id,
-                  jobTitle: job.title,
-                  employerName: jobDetail.employer?.fullName,
-                  appliedAt: application.appliedAt,
-                  read: localStorage.getItem(`notification-${job._id}-${application._id}`) === 'read'
-                });
-              }
-            }
-          } catch (err) {
-            // Skip if job detail fetch fails
-          }
-        }
-
-        setNotifications(acceptedApplications);
-        setUnreadCount(acceptedApplications.filter(n => !n.read).length);
-      }
-    } catch (error) {
-      console.error('Error fetching notifications:', error);
+      const [notifRes, countRes] = await Promise.all([
+        notificationAPI.getAll({ page: 1, limit: 8 }),
+        notificationAPI.getUnreadCount()
+      ]);
+      if (notifRes.data.success) setNotifications(notifRes.data.data.notifications);
+      if (countRes.data.success) setUnreadCount(countRes.data.data.unreadCount);
+    } catch (err) {
+      console.error('Notification fetch error:', err);
     }
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated]);
 
   useEffect(() => {
-    if (isAuthenticated && user?.role === 'photographer') {
-      fetchNotifications();
-      // Refresh notifications every 30 seconds
-      const interval = setInterval(fetchNotifications, 30000);
-      return () => clearInterval(interval);
-    }
+    if (!isAuthenticated || !user) return;
+
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 60000);
+
+    const socket = io(API_CONFIG.SOCKET_URL, { transports: ['websocket', 'polling'] });
+    socketRef.current = socket;
+    socket.emit('authenticate', user.id);
+    socket.on('new-notification', (notif) => {
+      setNotifications(prev => [notif, ...prev].slice(0, 8));
+      setUnreadCount(prev => prev + 1);
+    });
+
+    return () => {
+      clearInterval(interval);
+      socket.disconnect();
+    };
   }, [isAuthenticated, user, fetchNotifications]);
 
-  const handleNotificationClick = (notification) => {
-    localStorage.setItem(`notification-${notification.jobId}-${notification.id.split('-')[1]}`, 'read');
+  const handleNotificationClick = async (notification) => {
+    if (!notification.isRead) {
+      await notificationAPI.markAsRead(notification._id);
+      setNotifications(prev => prev.map(n => n._id === notification._id ? { ...n, isRead: true } : n));
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    }
     setShowNotifications(false);
-    navigate(`/jobs/${notification.jobId}`);
+    const link = notification.data?.link;
+    if (link) navigate(link);
+  };
+
+  const handleMarkAllRead = async () => {
+    await notificationAPI.markAllAsRead();
+    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+    setUnreadCount(0);
   };
 
   const navLinks = [
     { path: '/tournaments', label: 'Tournaments', icon: Trophy },
     { path: '/photographers', label: 'Photographers', icon: Camera },
+    { path: '/leaderboard', label: 'Leaderboard', icon: Award },
     { path: '/jobs', label: 'Find Work', icon: Briefcase },
     { path: '/chat', label: 'Chat', icon: MessageCircle },
   ];
@@ -154,58 +177,68 @@ const Navbar = () => {
           {isAuthenticated ? (
             <>
               {/* Notifications */}
-              {user?.role === 'photographer' && (
-                <div className="notification-container">
-                  <button 
-                    className="nav-icon-btn"
-                    onClick={() => setShowNotifications(!showNotifications)}
-                  >
-                    <Bell size={20} />
-                    {unreadCount > 0 && (
-                      <span className="notification-badge">{unreadCount}</span>
-                    )}
-                  </button>
-                  {showNotifications && notifications.length > 0 && (
-                    <>
-                      <div 
-                        className="notification-overlay"
-                        onClick={() => setShowNotifications(false)}
-                      />
-                      <div className="notification-dropdown">
-                        <div className="notification-header">
-                          <h3>Notifications</h3>
-                          <button onClick={() => setShowNotifications(false)}>×</button>
-                        </div>
-                        <div className="notification-list">
-                          {notifications.map((notification) => (
-                            <div
-                              key={notification.id}
-                              className={`notification-item ${!notification.read ? 'unread' : ''}`}
-                              onClick={() => handleNotificationClick(notification)}
-                            >
-                              <CheckCircle size={16} className="notification-icon" />
-                              <div className="notification-content">
-                                <p className="notification-title">Application Accepted!</p>
-                                <p className="notification-text">
-                                  Your application for <strong>{notification.jobTitle}</strong> has been accepted by {notification.employerName}
-                                </p>
-                                <span className="notification-time">
-                                  {new Date(notification.appliedAt).toLocaleDateString()}
-                                </span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                        <div className="notification-footer">
-                          <Link to="/my-applications" onClick={() => setShowNotifications(false)}>
-                            View All Applications
-                          </Link>
-                        </div>
-                      </div>
-                    </>
+              <div className="notification-container">
+                <button 
+                  className="nav-icon-btn"
+                  onClick={() => setShowNotifications(!showNotifications)}
+                >
+                  <Bell size={20} />
+                  {unreadCount > 0 && (
+                    <span className="notification-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
                   )}
-                </div>
-              )}
+                </button>
+                {showNotifications && (
+                  <>
+                    <div 
+                      className="notification-overlay"
+                      onClick={() => setShowNotifications(false)}
+                    />
+                    <div className="notification-dropdown">
+                      <div className="notification-header">
+                        <h3>Notifications</h3>
+                        {unreadCount > 0 && (
+                          <button className="mark-all-btn" onClick={handleMarkAllRead}>Mark all read</button>
+                        )}
+                      </div>
+                      <div className="notification-list">
+                        {notifications.length === 0 ? (
+                          <div className="notification-empty">
+                            <Bell size={24} style={{ opacity: 0.3 }} />
+                            <p>No notifications yet</p>
+                          </div>
+                        ) : (
+                          notifications.map((notification) => {
+                            const IconComp = NOTIF_ICONS[notification.type] || Bell;
+                            return (
+                              <div
+                                key={notification._id}
+                                className={`notification-item ${!notification.isRead ? 'unread' : ''}`}
+                                onClick={() => handleNotificationClick(notification)}
+                              >
+                                {notification.data?.badgeIcon ? (
+                                  <span className="notification-icon-emoji">{notification.data.badgeIcon}</span>
+                                ) : (
+                                  <IconComp size={16} className="notification-icon" />
+                                )}
+                                <div className="notification-content">
+                                  <p className="notification-title">{notification.title}</p>
+                                  <p className="notification-text">{notification.message}</p>
+                                  <span className="notification-time">{timeAgo(notification.createdAt)}</span>
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                      <div className="notification-footer">
+                        <Link to="/notifications" onClick={() => setShowNotifications(false)}>
+                          View All Notifications
+                        </Link>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
 
               {/* User Menu */}
               <div className="user-menu-container">

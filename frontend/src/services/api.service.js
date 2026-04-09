@@ -140,6 +140,16 @@ export const chatAPI = {
   getMessages: (params) => api.get('/chat/messages', { params })
 };
 
+// Notification API
+export const notificationAPI = {
+  getAll: (params) => api.get('/notifications', { params }),
+  getUnreadCount: () => api.get('/notifications/unread-count'),
+  markAsRead: (id) => api.patch(`/notifications/${id}/read`),
+  markAllAsRead: () => api.patch('/notifications/read-all'),
+  delete: (id) => api.delete(`/notifications/${id}`),
+  getBadges: () => api.get('/notifications/badges')
+};
+
 // Helper to get full image URL
 export const getImageUrl = (imagePath) => {
   if (!imagePath) return null;

@@ -3,6 +3,7 @@ const Job = require('../models/Job.model');
 const { validationResult } = require('express-validator');
 const fs = require('fs');
 const path = require('path');
+const { checkAndAwardBadges } = require('../services/badgeService');
 
 /**
  * @desc    Get user by ID
@@ -329,12 +330,11 @@ const addToPortfolio = async (req, res) => {
     });
 
     user.stats.totalPhotosUploaded += 1;
-
-    // Award points for uploading a photo
     user.points += 5;
     user.calculateLevel();
-
     await user.save();
+
+    await checkAndAwardBadges(userId);
 
     res.status(201).json({
       success: true,

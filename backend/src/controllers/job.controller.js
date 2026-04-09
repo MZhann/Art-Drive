@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const Job = require('../models/Job.model');
 const User = require('../models/User.model');
 const { validationResult } = require('express-validator');
+const { notifyJobApplication, notifyJobAccepted, notifyJobRejected } = require('../services/notificationService');
 
 /**
  * @desc    Create a new job posting
@@ -300,6 +301,14 @@ const applyForJob = async (req, res) => {
     await job.save();
     await job.populate('applications.photographer', 'username fullName avatar');
 
+    const applicant = await User.findById(req.user.id).select('fullName');
+    notifyJobApplication(
+      job.employer,
+      applicant?.fullName || 'A photographer',
+      job.title,
+      job._id
+    );
+
     res.status(201).json({
       success: true,
       message: 'Application submitted successfully',
@@ -355,8 +364,11 @@ const updateApplicationStatus = async (req, res) => {
       });
     }
 
-    // If accepting, reject all other applications and set selected photographer
     if (status === 'accepted') {
+      const rejectedPhotographers = job.applications
+        .filter(app => app._id.toString() !== applicationId)
+        .map(app => app.photographer);
+
       job.applications.forEach(app => {
         if (app._id.toString() !== applicationId) {
           app.status = 'rejected';
@@ -365,8 +377,15 @@ const updateApplicationStatus = async (req, res) => {
       application.status = 'accepted';
       job.selectedPhotographer = application.photographer;
       job.status = 'in-progress';
+
+      const employer = await User.findById(req.user.id).select('fullName');
+      notifyJobAccepted(application.photographer, employer?.fullName || 'An employer', job.title, job._id);
+      for (const pid of rejectedPhotographers) {
+        notifyJobRejected(pid, job.title, job._id);
+      }
     } else {
       application.status = 'rejected';
+      notifyJobRejected(application.photographer, job.title, job._id);
     }
 
     await job.save();

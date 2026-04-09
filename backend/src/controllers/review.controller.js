@@ -1,6 +1,8 @@
 const Review = require('../models/Review.model');
 const Job = require('../models/Job.model');
 const User = require('../models/User.model');
+const { awardPointsAndSync } = require('../services/badgeService');
+const { notifyJobCompleted } = require('../services/notificationService');
 
 /**
  * @desc    Mark job as completed and leave a review
@@ -71,13 +73,8 @@ const completeJobAndReview = async (req, res) => {
     await review.populate('employer', 'username fullName avatar companyName');
     await review.populate('job', 'title category');
 
-    // Award points to photographer for completing a job
-    const photographer = await User.findById(job.selectedPhotographer);
-    if (photographer) {
-      photographer.points += 50;
-      photographer.calculateLevel();
-      await photographer.save();
-    }
+    await awardPointsAndSync(job.selectedPhotographer, 50);
+    notifyJobCompleted(job.selectedPhotographer, job.title, job._id, 50);
 
     res.status(201).json({
       success: true,

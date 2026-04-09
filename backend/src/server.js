@@ -16,13 +16,14 @@ const tournamentRoutes = require('./routes/tournament.routes');
 const jobRoutes = require('./routes/job.routes');
 const reviewRoutes = require('./routes/review.routes');
 const chatRoutes = require('./routes/chat.routes');
+const notificationRoutes = require('./routes/notification.routes');
 
-console.log('HI haha');
 // Import seed
 const seedAdmin = require('./seeds/adminSeed');
 
 // Import services
 const { startTournamentNotifier } = require('./services/tournamentNotifier');
+const { initNotificationService } = require('./services/notificationService');
 
 // Import chat model for socket persistence
 const ChatMessage = require('./models/ChatMessage.model');
@@ -62,6 +63,7 @@ app.use('/api/tournaments', tournamentRoutes);
 app.use('/api/jobs', jobRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -73,14 +75,27 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Initialize notification service with Socket.IO
+initNotificationService(io);
+
+// Track online users in global chat
+const chatUsers = new Map();
+
 // Socket.IO connection handling
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
+  // --- User notification room (join by userId for real-time notifications) ---
+  socket.on('authenticate', (userId) => {
+    if (userId) {
+      socket.userId = userId;
+      socket.join(`user-${userId}`);
+    }
+  });
+
   // --- Tournament sockets ---
   socket.on('join-tournament', (tournamentId) => {
     socket.join(`tournament-${tournamentId}`);
-    console.log(`User ${socket.id} joined tournament ${tournamentId}`);
   });
 
   socket.on('vote', (data) => {
@@ -88,8 +103,15 @@ io.on('connection', (socket) => {
   });
 
   // --- Global Chat ---
-  socket.on('join-global-chat', () => {
+  socket.on('join-global-chat', (userData) => {
     socket.join('global-chat');
+    chatUsers.set(socket.id, userData || { id: socket.id });
+    io.to('global-chat').emit('chat-user-count', chatUsers.size);
+  });
+
+  socket.on('leave-global-chat', () => {
+    chatUsers.delete(socket.id);
+    io.to('global-chat').emit('chat-user-count', chatUsers.size);
   });
 
   socket.on('chat-message', async (data) => {
@@ -111,7 +133,10 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
-    console.log('User disconnected:', socket.id);
+    if (chatUsers.has(socket.id)) {
+      chatUsers.delete(socket.id);
+      io.to('global-chat').emit('chat-user-count', chatUsers.size);
+    }
   });
 });
 
